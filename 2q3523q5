@@ -1,0 +1,3330 @@
+/*todo
+use trace with headsmash ball to adjust height for ceilings
+fix traitor detector spam, something todo with the table.remove
+fix pre-round traitor weapon detection thing
+fix odd grey square things below text which appear when you die and have a red screen
+make prop leading trace happen from centre of prop
+figure out and fix the fps problem that remains even when no visuals are turned on - NPCS HAVE A MASSIVE FUCKING IMPACT
+add tickbox for wireframe material for propchams
+add tickbox for wireframe material for playerchams
+fix problem with add/removefriend not working with people that have ( something ) or [something] in their names
+
+at the end make two versions
+	full to give to entrusted people
+	
+	sabotaged version which will fuck as much shit up as possible to give to fuckwits like nemix
+		requires some sort of avengers style superhero team collaboration between hamster/ownage/anthrax/possibly others
+*/
+
+local G = table.Copy( _G )
+local RCC = G.RunConsoleCommand
+local RSTR = G.RunString
+local C = table.Copy( concommand )
+local CCA = C.Add
+local H = table.Copy( hook )
+local HKA = H.Add
+local HKR = H.Remove
+local Ent = FindMetaTable( "Entity" )
+local CamEnd3DShit = _G[ "cam" ][ "End3D" ]
+local RSetMaterial = Ent.SetMaterial
+local RGetMaterial = Ent.GetMaterial
+local RSetColour = Ent.SetColor
+local RGetColour = Ent.GetColor
+local CozIBackTracedIt
+local FriendsList
+local PlayerList
+local Window
+local ConsoleWindow
+local EntList
+local ESPEntList	
+
+local BH = {--OUTTA NOWHERE
+	Friends = {}, 
+	Spectators = {}, 
+	Props = {}, 
+	Tracked = {}, 
+	HighPriority = {}, 
+	Isolated = {}, 
+	SpawnedWithTraitorWeapons = {}, 
+	PlayerNameListTable = {}, 
+	MsHelpCommandTable = {}, 
+	ZoomView = {}, 
+	RPJobs = {}, 
+	MutedCunts = {}, 
+	MaterialFile = {}, 
+	ChamTable = {}, 
+	PotentialTargetListNames = {}, 
+	FriendsListNames = {}, 
+	Traitors = {}, 
+	LeadingTable = {}, 
+	SuitableTargetTable = {}, 
+	ConeTargetTable = {}, 
+	DangerProps = { "models/props/de_tides/gate_large.mdl", "models/props/cs_militia/refrigerator01.mdl", "models/props_c17/lockers001a.mdl", "models/props/de_train/lockers_long.mdl", "models/props_phx/construct/metal_plate4x4.mdl", "models/props_debris/walldestroyed01a.mdl" }, 
+	PropChamClasses = { "prop_physics", "prop_vehicle*", "gmod_button" }, 
+	TargetNPCClasses = { "npc_*", "anklebiter_zombie", "regular_zombie", "mauler_zombie", "toxic_zombie", "wraith_zombie" }, 
+	BjornTalks = { { 5, "?" }, { 20, "my game volume off you must type i cant hear u" }, { 50, "wait" }, { 70, "?wat" }, { 95, "/DARKRP Name bjorn" }, { 120, "/DARKRNAME bjorn" }, { 135, "o" }, { 145, "/SETROLLPLAYNAME bjorn" }, { 155, " ?OMG" }, { 180, "can u please explain it better ur not doing a very good job" }, { 190, "/ROLLPLAYNAME bjorn" }, { 200, "OMFG!!!!!!!!!!! STUPDIFUCKING COMMAND ISNT WORK!!" }, { 215, "?how do i get administrator because mayb will fix it" }, { 230, "?please" }, { 240, "// can a better administrator pls assist im being harasst" }, { 260, "// by an administrator that not knowing what he is talking about" }, { 270, "// he keep telling me to get name but when he tell me how it doesnt working" }, { 280, "OMG CAN I JUST GO TELL ME WHAT U WANT" }, { 290, "WE TRY THAT ALREADY AND IT HASNT WORKING" }, { 296, "my entire half of this conversation was automatic" }, { 298, "you've just wasted five minutes talking to a script" }, { 300, "dick head" } }, 
+	FirstNames = { "Hudson", "jordan", "Austin", "nathan", "Alex", "Hayden", "john", "Jasper", "Boris", "horace", "morris", "doris", "julian", "nate", "Seth", "luca", "Jackson", "Isaac", "david", "matthew", "thOmas", "sam", "Oscar", "timothy", "Anthony", "archer", "Christian", "Bailey", "jayden", "Michael", "brodie", "caleb", "Tyler", "Jacob", "Archie", "beau", "gabriel", "Flynn", "samuel", "Koby", "sebastian", "Hugo", "angus", "ryder", "leo", "Declan", "dominic", "Toby", "daniel", "harry", "Joel", "tory", "Tristan", "will", "Taj", "Xavier", "Christopher", "Zane", "Jai", "Zac", "Thomas", "Nicholas", "Benjamin", "Marcus", "Tyson", "Andrew", "Jack", "Levi", "ballow", "Walter", "horatio", "Quentin" }, 
+	Surnames = { "Schenk", "Beeby", "salisbury", "Atherton", "McColl", "Elsey", "bowles", "Macleod", "McElhone", "Schey", "Pridham", "wallwork", "Lassetter", "Manton", "leary", "England", "McNess", "hutchins", "Ronald", "Stones", "angas", "Lawrenson", "Dadswell", "crummer", "Gloucester", "cochran", "Ernest", "Todd", "Talbot", "Vogel", "Pryor", "peacock", "Lakeland", "Hallahan", "Avery", "edgerton", "Pohlman", "Nock", "resch", "Hassall", "Waley", "lyle", "Keynes", "Eagar", "copeland", "Gunson", "morell", "Cheel", "sumsuma", "Ellen", "Dove", "pizzey", "Morwood", "DeBavay", "tier", "Wilding", "Stoneman", "Whittell", "corey", "Patrick", "Loghlin", "mortlock", "Bulcock", "chumleigh", "Sani", "Timbery", "wheare", "Mondalmi", "Ferres", "buckley", "Chessman", "Macadam", "Whittle", "Dacomb", "tomkinson", "Woollacott", "Learmonth", "Cullen", "Sato", "gibson", "Medland", "Stang", "Trout", "cabena", "Edith", "Ryder", "Hardy", "ballow", "Kabu", "Haenke", "pescott", "Cudmore", "Aplin", "Zahel", "Kenyon" }, 
+	UserNames = {"PedroGarcia2003", "deathcole20", "udealwithit", "kellyhxo", "nitrodan9", "Turbofaaret", "tlit02", "Somixe", "lm3788", "shinxluxio12655", "brr4airsoft", "FoG_Triton", "Boss_Nomad", "VillaV", "benmaher", "raptor6200", "Cheesy56", "ARiiiES", "shadow615", "ladiesman1324", "deatharrow36", "Harukoxd", "zacymacy2", "BED_TIME101", "jellybeanmm", "kyle_mcmanus", "widget20", "MrJevie", "boot_straps", "beatles4", "BILLYRAY", "bprevatte", "browning", "bullmastiff", "burry", "cruiser", "DChrles", "deck", "Diver", "eagleone", "gordo", "Holt", "mustang0000", "Strike34", "Am132__Y", "vince1949", "Sirbruce100", "Helloman999", "Amiable", "fukjaps888"}, 
+	ProColours = { "-80 -7 -99999999999", "-80 -999999999999 -7", "-7 -7 -99999999999999999999", "-99999999999 -7 -7", "-7 -999999999999999999999 -7" }, 
+	TardColours = { "0.8 0.2 0.6", "0 1 0.03", "0.1 0.05 1", "0.3 0.5 0.02", "1 0 0", "1 1 0", "0 1 0", "0 1 1", "0 0 1", "1 0 0" }, 
+	MaterialsAndWidths = { "rope_material", "elastic_material", "hydraulic_material", "winch_rope_material", "slider_material", "muscle_material", "wire_material", "wire_adv_material", "rope_width", "elastic_width", "hydraulic_width", "winch_rope_width", "slider_width", "muscle_width", "wire_width", "wire_adv_width" }, 
+	IgnoreDropWeps = { "weapon_physgun", "weapon_physcannon", "weapon_fists", "gmod_tool", "keys", "pocket", "gmod_camera" }, 
+	TriggerbotBlacklist = { "weapon_physgun", "gmod_tool" },
+	WhiteMaterial = CreateMaterial( "White9", "UnlitGeneric", { [ "$basetexture" ] = "models/debug/debugwhite", [ "$nocull" ] = 1, [ "$model" ] = 1 } ), 
+	DeagleLogsShit = { DeathLog = { Time = {}, SteamID = {}, HSteamID = {}, Name = {}, KillerName = {}, InflictorName = {}, KSteamID = {} }, PropLog = { Time = {}, SteamID = {}, HSteamID = {}, Name = {}, Model= {} }, JobLog = { Time = {}, SteamID = {}, 	HSteamID = {}, 	Name = {}, 	OldTeam = {}, 	NewTeam = {}, }, ConnectLog = { Time = {}, SteamID = {}, HSteamID = {}, Name = {}, Method = {} }, ToolLog = { Time = {}, SteamID = {}, HSteamID = {}, Name = {}, Tool = {} }, DMGLog = { Time = {}, SteamID = {}, HSteamID = {}, Name = {}, KillerName = {}, KSteamID = {}, InflictorName = {}, Method = {}, Damage = {} }, NameLog = { Time = {}, Name = {}, SteamID = {}, HSteamID = {}, OldName = {}, NewName = {} }, ArrestLog = { Time = {}, Name = {}, SteamID = {}, HSteamID = {}, Method = {}, Officer = {}, OSteamID = {} }, DemoteLog = { Time = {}, Name = {}, SteamID = {}, HSteamID = {}, Demoter = {}, DSteamID = {}, Job = {}, Reason = {} }, HitLog = { Time = {}, Name = {}, SteamID = {}, HSteamID = {}, Target = {}, TSteamID = {}, Method = {}, Customer = {}, CSteamID = {} }, },
+	Job2 = "", 
+	LastJob = "", 
+	NewJob = "", 
+	LastFirstName = "", 
+	LastSurname = "", 
+	NewFirstName = "", 
+	NewSurname = "", 
+	EnabledOrDisabled = "",
+	MaxFOV = 180, 
+	LastDist = 2048, 
+	Int2 = 1, 
+	NextSpawn = 0, 
+	TopSpeed = 0, 
+	CurrentSpeed = 0, 
+	NextFire = 0, 
+	NextSnap = 0, 
+	NewProColour = 0, 
+	LastProColour = 0, 
+	NewTardColour = 0, 
+	LastTardColour = 0, 
+	BiggestString = 0, 
+	Zoom = 0, 
+	NextBjornType = 0, 
+	Speed = 0, 
+	SilentSnapDelay = 0, 
+	MenuTimer = 0, 
+	TorchSpamTimer = 0, 
+	TorchShutoffTimer = 0, 
+	SilentAimPingAdjust = 0,
+	Settings, 
+	EntityLock, 
+	TargetPly, 
+	Inv, 
+	IsVisTrace, 
+	AimBone, 
+	SpecColour, 
+	FriendlyMinge, 
+	PhysOverrideMul, 
+	PhysOverrideCol, 
+	ThirdPersonView, 
+	ConeTarget, 
+	PrevAng = Angle( 0, 0, 0 ), 
+	SilentAimAngle = Angle( 0, 0, 0 ), 
+	Start = Angle( 0, 0, 0 ), 
+	CHOutterPos1 = Vector( 0, 0, 0 ), 
+	CHOutterPos2 = Vector( 0, 0, 0 ), 
+	CHOutterPos3 = Vector( 0, 0, 0 ), 
+	CHOutterPos4 = Vector( 0, 0, 0 ), 
+	CHOutterPos5 = Vector( 0, 0, 0 ), 
+	CHOutterPos6 = Vector( 0, 0, 0 ), 
+	CHOutterPos7 = Vector( 0, 0, 0 ), 
+	CHOutterPos8 = Vector( 0, 0, 0 ), 
+	CHMidPos1 = Vector( 0, 0, 0 ), 
+	CHMidPos2 = Vector( 0, 0, 0 ), 
+	CHMidPos3 = Vector( 0, 0, 0 ), 
+	CHMidPos4 = Vector( 0, 0, 0 ), 
+	CHMidPos5 = Vector( 0, 0, 0 ), 
+	CHMidPos6 = Vector( 0, 0, 0 ), 
+	CHMidPos7 = Vector( 0, 0, 0 ), 
+	CHMidPos8 = Vector( 0, 0, 0 ), 	
+	CHInnerPos1 = Vector( 0, 0, 0 ), 
+	CHInnerPos2 = Vector( 0, 0, 0 ), 
+	CHInnerPos3 = Vector( 0, 0, 0 ), 
+	CHInnerPos4 = Vector( 0, 0, 0 ), 
+	CHInnerPos5 = Vector( 0, 0, 0 ), 
+	CHInnerPos6 = Vector( 0, 0, 0 ), 
+	CHInnerPos7 = Vector( 0, 0, 0 ), 
+	CHInnerPos8 = Vector( 0, 0, 0 ), 
+	Colours = {	
+		red = Color( 255, 0, 0, 60 ), 
+		green = Color( 0, 255, 0, 255 ), 
+		blue = Color( 20, 150, 255, 60 ), 
+		white = Color( 255, 255, 255, 255 ), 
+		pink = Color( 255, 0, 255, 255 ), 
+		black = Color( 0, 0, 0, 255 ), 
+		yellow = Color( 255, 255, 0, 255 ), 
+		traitorred = Color( 0, 0, 255 ), 
+		headsmashballcol = Color( 0, 0, 0, 255 ), 		
+		Col = Color( 0, 0, 0, 255 ), 		
+		Random = Color( 0, 0, 0, 255 ), 		
+		PropChamsColour = Color( 0, 0, 0, 255 ), 		
+		CrosshairCol = Color( 0, 0, 0, 255 ), 		
+	},	
+	SpawnMaxBounds = Vector( -2552.397217, -2431.968750, 14.708786 ), 
+	SpawnMinBounds = Vector( -2807.807373, -2847.065674, -200 ), 
+	ScreenGrab = false, 
+	IsFiring = false, 
+	TorchSpamming = false, 
+	Cannoning = false, 
+	DetectingTs = false, 
+	Visible = true, 
+	RopeSpamming = false, 
+	Glowing = false, 
+	ZoomActive = false, 
+	ZoomEnable = false, 
+	Vomiting = false, 
+	KickFlipping = false, 
+	IsBjornTyping = false, 
+	IsBjorn = false, 
+	FuckingPlayer = false, 
+	ConeSpawned = false, 
+	UpdateCol = true, 
+	UpdatePropCol = true, 
+	ResetVis = false, 
+	SetNoVis = false, 
+	UpdateSilentAngle = true, 
+	SnapBack = false, 
+	Lagsploiting = false, 
+	Hopping = false, 
+	MenuOpen = false, 
+	MenuFirstPass = true, 
+	StayOpen = false, 
+	DeagleLogs = false,
+	SnapBack2 = false,	
+}
+
+function table.val_to_str ( v )
+	if "string" == type( v ) then
+		return "hi"
+	else
+		return "table" == type( v ) and table.tostring( v ) or
+		tostring( "hi" )
+	end
+end
+
+function table.key_to_str ( k )
+	if "string" == type( k ) and string.match( k, "^[_%a][_%a%d]*$" ) then
+		return k
+	else
+		return "[" .. table.val_to_str( k ) .. "]"
+	end
+end
+
+function table.tostring( tbl )
+	local result, done = {}, {}
+		for k,v in ipairs( tbl ) do
+			table.insert( result, table.val_to_str( v ) )
+			done[ k ] = true
+		end
+		for k,v in pairs( tbl ) do
+			if not done[ k ] then
+			table.insert( result, 
+			table.key_to_str( k ) .. "=" .. table.val_to_str( v ) )
+		end
+	end
+	table.sort( result, function( a, b ) return a > b end )
+	return "{" .. table.concat( result, ", " ) .. "}"
+end
+
+BH.Settings = {
+	TriggerBot = {
+		enabled = false, 
+		onlyaim = true, 
+		rapidfire = false, 
+	}, 
+	Aimbot = {
+		enabled = false, 
+		targetnpcs = false, 
+		aimsmoothon = false, 
+		multitrace = false, 
+		norecoil = true, 
+		noshake = true, 
+		ignorefriends = false, 
+		ignoreteammates = false, 
+		silent = false, 
+		maxfov = 30, 
+		snapwait = 0, 
+		aimsmooth = 30, 
+		Bones = { "POW RIGHT IN THE KISSER", "Nipples", "RIGHT IN THE PUSSY", "Left Kneecap", "Right Kneecap" }, 
+		AimFor = "POW RIGHT IN THE KISSER", 
+	}, 
+	Visuals = {			
+		Text = {
+			on = true, 
+			mingenametags = true, 
+			names = true, 
+			health = true, 
+			weapon = true, 
+			rank = true, 
+			distance = true, 
+			modelnames = true, 
+			espvelocity = true, 
+			velocity = true, 
+			topvelocity = true,
+		}, 
+		addwire = false, 
+		playerleading = false, 
+		propleading = false, 
+		verticalbeam = true, 
+		headsmash = true, 
+		headsmashball = true, 
+		boxes = true, 
+		teamcolours = false, 
+		playerchams = true, 
+		propchams = true, 
+		playersuppressenginelighting = false, 
+		nosky = false, 
+		crosshair = true, 
+		eyetrace = true, 
+		halos = true, 
+		thirdperson = false, 
+		savefps = false, 
+		weaponchams = true, 
+		traitor = true, 
+		checktidesgate = false, 
+		rainbow = false, 
+		nogunz = false,
+		overridephysgun = false,
+		PropR = 255, 
+		PropG = 150, 
+		PropB = 0, 
+		PropA = 45, 
+		CustomR = 0, 
+		CustomG = 255, 
+		CustomB = 255, 
+		rainbowmult = 1, 
+		ThirdPersonDist = 250, 			
+		haloselection = 3, 
+		crosshairspeed = 2, 
+		customents = {}, 
+		RopeMaterial = "matsys_regressiontest/background",
+	}, 
+	Debug = false,
+	AutoStrafe = false,
+}
+
+local function MSMsg( text )
+	MsgC( BH.Colours.green, string.upper( text ) .. "\n" )
+end
+
+if( !file.Exists( "mssettings.txt", "DATA" ) ) then
+	file.Write( "mssettings.txt", util.TableToJSON( BH.Settings ), "DATA" )
+else	
+	if( table.tostring( BH.Settings ) == table.tostring( util.JSONToTable( file.Read( "mssettings.txt", "DATA" ) ) ) ) then
+		BH.Settings = util.JSONToTable( file.Read( "mssettings.txt", "DATA" ) )
+		BH.Settings.Aimbot.enabled = false
+	else
+		MSMsg( "SETTINGS FILE TEMPLATE CHANGED .. REWRITING..." )
+		file.Delete( "mssettings.txt" )
+		file.Write( "mssettings.txt", util.TableToJSON( BH.Settings ), "DATA" )
+	end
+end
+
+local function LogMsg( text )
+	if( !BH.Settings.Debug ) then return end
+	MSMsg( text )
+end
+local function MSError( text )
+	notification.AddLegacy( string.upper( text ), NOTIFY_ERROR, 5 )
+	MSMsg( text )
+	RCC( "play", "buttons/button16.wav" )
+end
+local function EnabledDisabled( name, bool )
+	BH.EnabledOrDisabled = "disabled"	
+	if( bool ) then
+		BH.EnabledOrDisabled = "enabled"
+	end
+	MSMsg( name .. " " .. BH.EnabledOrDisabled )
+end
+
+local function FindByName( text )
+	for k,v in pairs( player.GetAll() ) do
+		if( v == LocalPlayer() ) then continue end
+		if( string.find( string.lower( v:Nick() ), string.lower( text ) ) ) then
+			return v
+		end
+	end
+	return nil
+end
+
+local function GetPlayerNameList( pref )
+	BH.PlayerNameListTable = {}
+	for k,v in pairs( player.GetAll() ) do
+		table.insert( BH.PlayerNameListTable, pref .. v:Nick() )
+	end
+	return BH.PlayerNameListTable
+end 
+
+local function AddFriend( name )
+	if( type( name ) != "string" and name:IsPlayer() ) then
+		if( table.HasValue( BH.Friends, name ) ) then
+			MSMsg( name:Nick() .. " IS ALREADY ON YOUR FRIENDS LIST" )
+			return
+		end		
+		table.insert( BH.Friends, name )
+		MSMsg( "ADDED " .. name:Nick() .. " TO FRIEND LIST" )
+		return
+	end	
+	if( type( name ) != "string" ) then MSError( "ERROR: ADDFRIEND ATTEMPTED TO USE TYPE ".. type( name ) ) return end
+	if( type( name ) == "string" and string.len( name ) < 1 ) then return end
+	if( name == "*" ) then
+		BH.Friends = table.Copy( player.GetAll() )
+		MSMsg( "ADDED EVERYONE TO FRIENDS LIST" )
+		return
+	end
+	
+	local ToAdd = FindByName( name )	
+	if( table.HasValue( BH.Friends, ToAdd ) ) then
+		MSMsg( ToAdd:Nick() .. " IS ALREADY ON YOUR FRIENDS LIST" )
+		return
+	end			
+	table.insert( BH.Friends, ToAdd )
+	MSMsg( "ADDED " .. ToAdd:Nick() .. " TO FRIEND LIST" )
+end
+CCA( "ms_friendadd", function( _, _, args ) AddFriend( table.concat( args, " " ) ) end, function() return GetPlayerNameList( "t_friendadd " ) end )
+ 
+local function RemoveFriend( name )
+	if( type( name ) == "string" and name == "*" ) then
+		BH.Friends = {}
+		MSMsg( "REMOVED EVERYONE FROM LIST" )
+		return
+	end	
+	if( type( name ) == "string" and string.len( name ) < 1 ) then return end
+	for k,v in pairs( BH.Friends ) do
+		if( type( name ) != "string" and name:IsPlayer() and name == v ) or ( type( name ) == "string" and FindByName( name ) == v ) then
+			table.remove( BH.Friends, k )
+			MSMsg( "REMOVED " .. v:Nick() .. " FROM FRIENDS LIST" )
+			break
+		end
+	end
+end
+CCA( "ms_friendremove", function( _, _, args ) RemoveFriend( table.concat( args, " " ) ) end, function() return GetPlayerNameList( "t_friendremove " ) end )
+
+local function InvertColour( c )
+	return Color( 255 - c.r, 255 - c.g, 255 - c.b, 255 );
+end
+
+local function NoShake( ply, pos, angles, fov )
+	if( GetViewEntity() != LocalPlayer() or BH.ZoomEnable or BH.Settings.Visuals.thirdperson or LocalPlayer():InVehicle() ) then return end
+	local view = { ply = ply, origin = pos, angles = LocalPlayer():EyeAngles(), fov = fov }
+	return view
+end
+	
+local function GenerateVisualsSheet( w, h )
+	VisualPanel = vgui.Create( "DPanel" )
+	VisualPanel:SetPos( 2, 2 )
+	VisualPanel:SetSize( w - 2, h - 2 )
+	VisualPanel.Paint = function()
+		draw.RoundedBox( 3, 0, 0, VisualPanel:GetWide(), VisualPanel:GetTall(), Color( 50, 50, 50, 255 ) )
+	end 
+	
+	local SheetLeft = vgui.Create( "DPanelList", VisualPanel )
+	SheetLeft:SetPos( 2, 2 )
+	SheetLeft:SetSize( 100, h )
+	SheetLeft:SetSpacing( 6 )
+	SheetLeft:SetPadding( 4 )
+	SheetLeft:EnableVerticalScrollbar( true )
+
+	local SheetMid = vgui.Create( "DPanelList", VisualPanel )
+	SheetMid:SetPos( 100, 2 )
+	SheetMid:SetSize( 100, h )
+	SheetMid:SetSpacing( 6 )
+	SheetMid:SetPadding( 4 )
+	SheetMid:EnableVerticalScrollbar( true )
+
+	local SheetRight = vgui.Create( "DPanelList", VisualPanel )
+	SheetRight:SetPos( 200, 2 )
+	SheetRight:SetSize( 100, h )
+	SheetRight:SetSpacing( 6 )
+	SheetRight:SetPadding( 4 )
+	SheetRight:EnableVerticalScrollbar( true )
+	
+	local SheetLong = vgui.Create( "DPanelList", VisualPanel )
+	SheetLong:SetPos( 2, 90 )
+	SheetLong:SetSize( 300, h )
+	SheetLong:SetSpacing( 6 )
+	SheetLong:SetPadding( 4 )
+	SheetLong:EnableVerticalScrollbar( true )
+
+	local CheckBoxAddWire = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxAddWire:SetText( "Add Wire" )
+	CheckBoxAddWire:SetToolTip( "Adds Wiremod shit to prop chams" )
+	CheckBoxAddWire:SetValue( BH.Settings.Visuals.addwire )
+	CheckBoxAddWire.OnChange = function( _, toggle )
+		BH.Settings.Visuals.addwire = toggle
+		if( BH.Settings.Visuals.addwire ) then
+			table.insert( BH.PropChamClasses, "gmod_wire*" )
+			BH.SetNoVis = true
+		else
+			BH.ResetVis = true
+			table.remove( BH.PropChamClasses, 4 )
+			BH.SetNoVis = true
+		end
+	end
+	CheckBoxAddWire:SizeToContents()
+	
+	local CheckBoxCheckTidesGate = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxCheckTidesGate:SetText( "Prop Danger" )
+	CheckBoxCheckTidesGate:SetToolTip( "Tides gates and fridges flash red if they have a clear path to you" )
+	CheckBoxCheckTidesGate:SetValue( BH.Settings.Visuals.checktidesgate )
+	CheckBoxCheckTidesGate.OnChange = function( _, toggle )
+		BH.Settings.Visuals.checktidesgate = toggle
+	end
+	CheckBoxCheckTidesGate:SizeToContents()
+
+	local CheckBoxCrosshair = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxCrosshair:SetText( "Crosshair" )
+	CheckBoxCrosshair:SetToolTip( "CUNTFLAKE" )
+	CheckBoxCrosshair:SetValue( BH.Settings.Visuals.crosshair )
+	CheckBoxCrosshair.OnChange = function( _, toggle )
+		BH.Settings.Visuals.crosshair = toggle
+	end
+	CheckBoxCrosshair:SizeToContents()
+	
+	local CheckBoxModelNames = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxModelNames:SetText( "Model Names" )
+	CheckBoxModelNames:SetToolTip( "Shows the model of the prop/button you're aiming at" )
+	CheckBoxModelNames:SetValue( BH.Settings.Visuals.Text.modelnames )
+	CheckBoxModelNames.OnChange = function( _, toggle )
+		BH.Settings.Visuals.Text.modelnames = toggle
+	end
+	CheckBoxModelNames:SizeToContents()
+	
+	local CheckBoxNoSky = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxNoSky:SetText( "No Skybox" )
+	CheckBoxNoSky:SetToolTip( ">implying this needs a tooltip" )
+	CheckBoxNoSky:SetValue( BH.Settings.Visuals.nosky )
+	CheckBoxNoSky.OnChange = function( _, toggle )
+		BH.Settings.Visuals.nosky = toggle
+		if( BH.Settings.Visuals.nosky ) then
+			HKA( "PreDrawSkyBox", "removeSkybox", function() render.Clear( math.abs( math.cos( CurTime() /10 ) *100 ), math.abs( math.cos( CurTime() /10 ) *100 ), math.abs( math.cos( CurTime()/10 ) *100 ), 255 ) return true end )
+			return
+		end
+		HKR( "PreDrawSkyBox", "removeSkybox" )
+	end
+	CheckBoxNoSky:SizeToContents()
+	
+	local CheckBoxPropChams = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxPropChams:SetText( "Prop Chams" )
+	CheckBoxPropChams:SetTooltip( "Prop wallhack" )
+	CheckBoxPropChams:SetValue( BH.Settings.Visuals.propchams )
+	CheckBoxPropChams.OnChange = function( _, toggle )
+		BH.Settings.Visuals.propchams = toggle
+		if( BH.Settings.Visuals.propchams ) then
+			BH.SetNoVis = true
+			return
+		end
+		BH.ResetVis = true
+	end
+	CheckBoxPropChams:SizeToContents()
+	
+	local CheckBoxPropLeading = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxPropLeading:SetText( "Prop Predict" )
+	CheckBoxPropLeading:SetToolTip( "Prop trajectory prediction, works okay" )
+	CheckBoxPropLeading:SetValue( BH.Settings.Visuals.propleading )
+	CheckBoxPropLeading.OnChange = function( _, toggle )
+		BH.Settings.Visuals.propleading = toggle
+	end
+	CheckBoxPropLeading:SizeToContents()
+	
+	local CheckBoxRainbow = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxRainbow:SetText( "Rainbow" )
+	CheckBoxRainbow:SetToolTip( "TASTE THE RAINBOW MOTHER FUCKER" )
+	CheckBoxRainbow:SetValue( BH.Settings.Visuals.rainbow )
+	CheckBoxRainbow.OnChange = function( _, toggle )
+		BH.Settings.Visuals.rainbow = toggle
+		if( !BH.Settings.Visuals.rainbow ) then
+			BH.UpdateCol = true
+			BH.UpdatePropCol = true
+		end
+	end
+	CheckBoxRainbow:SizeToContents()
+	
+	local CheckBoxSaveFPS = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxSaveFPS:SetText( "Save FPS" )
+	CheckBoxSaveFPS:SetToolTip( "Stops rendering visuals outside your view, bit fucked" )
+	CheckBoxSaveFPS:SetValue( BH.Settings.Visuals.savefps )
+	CheckBoxSaveFPS.OnChange = function( _, toggle )
+		BH.Settings.Visuals.savefps = toggle
+	end
+	CheckBoxSaveFPS:SizeToContents()
+	
+	local CheckBoxNoGunz = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxNoGunz:SetText( "Invis Weapon" )
+	CheckBoxNoGunz:SetToolTip( "Makes your shit all invisible and shit - massive fps drain" )
+	CheckBoxNoGunz:SetValue( BH.Settings.Visuals.nogunz )
+	CheckBoxNoGunz.OnChange = function( _, toggle )
+		BH.Settings.Visuals.nogunz = toggle
+	end
+	CheckBoxNoGunz:SizeToContents()
+
+	local CheckBoxTopVelocity = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxTopVelocity:SetText( "Top Velocity" )
+	CheckBoxTopVelocity:SetToolTip( "Displays your top velocity" )
+	CheckBoxTopVelocity:SetValue( BH.Settings.Visuals.Text.topvelocity )
+	CheckBoxTopVelocity.OnChange = function( _, toggle )
+		BH.Settings.Visuals.Text.topvelocity = toggle
+	end
+	CheckBoxTopVelocity:SizeToContents()
+
+	local CheckBoxVelocity = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxVelocity:SetText( "Velocity" )
+	CheckBoxVelocity:SetToolTip( "Displays your current velocity" )
+	CheckBoxVelocity:SetValue( BH.Settings.Visuals.Text.velocity )
+	CheckBoxVelocity.OnChange = function( _, toggle )
+		BH.Settings.Visuals.Text.velocity = toggle
+	end
+	CheckBoxVelocity:SizeToContents()
+	
+	local PropR = vgui.Create( "DNumSlider" )
+	PropR:SetMinMax( 0, 255 )
+	PropR:SetValue( BH.Settings.Visuals.PropR )
+	PropR:SetText( "Prop Chams: Red" )
+	PropR:SetDecimals( 0 )
+	PropR.TextArea:SetTextColor( Color( 190, 190, 190 ) )
+	PropR.OnValueChanged = function( panel, value )
+		BH.Settings.Visuals.PropR = value
+		BH.UpdatePropCol = true
+	end
+	PropR:SetSize( 120, 14 )
+ 
+	local PropG = vgui.Create( "DNumSlider" )
+	PropG:SetMinMax( 0, 255 )
+	PropG:SetValue( BH.Settings.Visuals.PropG )
+	PropG:SetText( "Prop Chams: Green" )
+	PropG:SetDecimals( 0 )
+	PropG.TextArea:SetTextColor( Color( 190, 190, 190 ) )
+	PropG.OnValueChanged = function( panel, value )
+		BH.Settings.Visuals.PropG = value
+		BH.UpdatePropCol = true
+	end
+	PropG:SetSize( 120, 14 )
+
+	local PropB = vgui.Create( "DNumSlider" )
+	PropB:SetMinMax( 0, 255 )
+	PropB:SetValue( BH.Settings.Visuals.PropB )
+	PropB:SetText( "Prop Chams: Blue" )
+	PropB:SetDecimals( 0 )
+	PropB.TextArea:SetTextColor( Color( 190, 190, 190 ) )
+	PropB.OnValueChanged = function( panel, value )
+		BH.Settings.Visuals.PropB = value
+		BH.UpdatePropCol = true
+	end
+	PropB:SetSize( 120, 14 )
+
+	local PropA = vgui.Create( "DNumSlider" )
+	PropA:SetMinMax( 0, 100 )
+	PropA:SetValue( BH.Settings.Visuals.PropA )
+	PropA:SetText( "Prop Chams: Opacity" )
+	PropA:SetDecimals( 0 )
+	PropA.TextArea:SetTextColor( Color( 190, 190, 190 ) )
+	PropA.OnValueChanged = function( panel, value )
+		BH.Settings.Visuals.PropA = value
+		BH.UpdatePropCol = true
+	end
+	PropA:SetSize( 120, 14 )
+
+	local RainbowMulSlider = vgui.Create( "DNumSlider" )
+	RainbowMulSlider:SetMinMax( 1, 50 )
+	RainbowMulSlider:SetValue( BH.Settings.Visuals.rainbowmult )
+	RainbowMulSlider:SetText( "Rainbow: Phase Speed" )
+	RainbowMulSlider:SetDecimals( 0 )
+	RainbowMulSlider.TextArea:SetTextColor( Color( 190, 190, 190 ) )
+	RainbowMulSlider.OnValueChanged = function( panel, value )
+		BH.Settings.Visuals.rainbowmult = value
+		if( !BH.Settings.Visuals.rainbowmult ) then
+			if( !BH.Settings.Visuals.teamcolours ) then
+				BH.UpdateCol = true
+			end
+			BH.UpdatePropCol = true
+		end
+	end
+	RainbowMulSlider:SetSize( 120, 14 )
+
+	local ThirdPersonDist = vgui.Create( "DNumSlider" )
+	ThirdPersonDist:SetMinMax( 0, 2000 )
+	ThirdPersonDist:SetValue( BH.Settings.Visuals.ThirdPersonDist )
+	ThirdPersonDist:SetText( "Third Person Distance" )
+	ThirdPersonDist:SetDecimals( 0 )
+	ThirdPersonDist.TextArea:SetTextColor( Color( 190, 190, 190 ) )
+	ThirdPersonDist.OnValueChanged = function( panel, value )
+		BH.Settings.Visuals.ThirdPersonDist = value
+		if( BH.Settings.Visuals.ThirdPersonDist <30 ) then
+			BH.Settings.Visuals.thirdperson = false
+			return
+		end
+		BH.Settings.Visuals.thirdperson = true
+	end
+	ThirdPersonDist:SetSize( 120, 14 )
+	
+	local CrosshairSpeed = vgui.Create( "DNumSlider" )
+	CrosshairSpeed:SetMinMax( 1, 5 )
+	CrosshairSpeed:SetValue( BH.Settings.Visuals.crosshairspeed )
+	CrosshairSpeed:SetText( "Crosshair Speed" )
+	CrosshairSpeed:SetDecimals( 1 )
+	CrosshairSpeed.TextArea:SetTextColor( Color( 190, 190, 190 ) )
+	CrosshairSpeed.OnValueChanged = function( panel, value )
+		BH.Settings.Visuals.crosshairspeed = value
+	end
+	CrosshairSpeed:SetSize( 120, 14 )
+	
+	SheetLeft:AddItem( CheckBoxAddWire )
+	SheetMid:AddItem( CheckBoxCheckTidesGate )	
+	SheetRight:AddItem( CheckBoxCrosshair )
+	
+	SheetLeft:AddItem( CheckBoxModelNames )
+	SheetMid:AddItem( CheckBoxNoSky )	
+	SheetRight:AddItem( CheckBoxPropChams )
+	
+	SheetLeft:AddItem( CheckBoxPropLeading )
+	SheetMid:AddItem( CheckBoxRainbow )
+	SheetRight:AddItem( CheckBoxSaveFPS )
+	
+	SheetLeft:AddItem( CheckBoxNoGunz )
+	SheetMid:AddItem( CheckBoxTopVelocity )	
+	SheetRight:AddItem( CheckBoxVelocity )
+	
+	SheetLong:AddItem( PropR )
+	SheetLong:AddItem( PropG )
+	SheetLong:AddItem( PropB )
+	SheetLong:AddItem( PropA )
+	SheetLong:AddItem( RainbowMulSlider )
+	SheetLong:AddItem( ThirdPersonDist )
+	SheetLong:AddItem( CrosshairSpeed )
+
+	return VisualPanel
+end
+
+local function GeneratePlayerVisualsSheet( w, h )
+	PlayerVisPanel = vgui.Create( "DPanel" )
+	PlayerVisPanel:SetPos( 4, 4 )
+	PlayerVisPanel:SetSize( w - 2, h - 2 )
+	PlayerVisPanel.Paint = function()
+		draw.RoundedBox( 3, 0, 0, PlayerVisPanel:GetWide(), PlayerVisPanel:GetTall(), Color( 50, 50, 50, 255 ) )
+	end 
+	
+	local SheetLong = vgui.Create( "DPanelList", PlayerVisPanel )
+	SheetLong:SetPos( 2, 150 )
+	SheetLong:SetSize( 305, h/3 )
+	SheetLong:SetSpacing( 3 )
+	SheetLong:SetPadding( 4 )
+	SheetLong:EnableVerticalScrollbar( true )
+	
+	local SheetLeft = vgui.Create( "DPanelList", PlayerVisPanel )
+	SheetLeft:SetPos( 2, 2 )
+	SheetLeft:SetSize( 85, h/1.8 )
+	SheetLeft:SetSpacing( 6 )
+	SheetLeft:SetPadding( 4 )
+	SheetLeft:EnableVerticalScrollbar( true )
+
+	local SheetMid = vgui.Create( "DPanelList", PlayerVisPanel )
+	SheetMid:SetPos( 85, 2 )
+	SheetMid:SetSize( 112, h/1.8 )
+	SheetMid:SetSpacing( 6 )
+	SheetMid:SetPadding( 4 )
+	SheetMid:EnableVerticalScrollbar( true )
+
+	local SheetRight = vgui.Create( "DPanelList", PlayerVisPanel )
+	SheetRight:SetPos( 190, 2 )
+	SheetRight:SetSize( 115, h/1.8 )
+	SheetRight:SetSpacing( 6 )
+	SheetRight:SetPadding( 4 )
+	SheetRight:EnableVerticalScrollbar( true )
+	
+	local CustomR = vgui.Create( "DNumSlider" )
+	CustomR:SetMinMax( 0, 255 )
+	CustomR:SetValue( BH.Settings.Visuals.CustomR )
+	CustomR:SetText( "Player Red" )
+	CustomR:SetDecimals( 0 )
+	CustomR.TextArea:SetTextColor( Color( 190, 190, 190 ) )
+	CustomR.OnValueChanged = function( panel, value )
+		BH.Settings.Visuals.CustomR = value
+		BH.UpdateCol = true
+	end
+	CustomR:SetSize( 120, 15 )	
+	
+	local CustomG = vgui.Create( "DNumSlider" )
+	CustomG:SetMinMax( 0, 255 )
+	CustomG:SetValue( BH.Settings.Visuals.CustomG )
+	CustomG:SetText( "Player Green" )
+	CustomG:SetDecimals( 0 )
+	CustomG.TextArea:SetTextColor( Color( 190, 190, 190 ) )
+	CustomG.OnValueChanged = function( panel, value )
+		BH.Settings.Visuals.CustomG = value
+		BH.UpdateCol = true
+	end
+	CustomG:SetSize( 120, 15 )
+	
+	local CustomB = vgui.Create( "DNumSlider" )
+	CustomB:SetMinMax( 0, 255 )
+	CustomB:SetValue( BH.Settings.Visuals.CustomB )
+	CustomB:SetText( "Player Blue" )
+	CustomB:SetDecimals( 0 )
+	CustomB.TextArea:SetTextColor( Color( 190, 190, 190 ) )
+	CustomB.OnValueChanged = function( panel, value )
+		BH.Settings.Visuals.CustomB = value
+		BH.UpdateCol = true
+	end
+	CustomB:SetSize( 120, 15 )	
+
+	local HaloSelection = vgui.Create( "DComboBox" )
+	HaloSelection:SetValue( "Halo/Ms_OverridePhysgun Colour Selection" )
+	HaloSelection:AddChoice( "Halo/Ms_OverridePhysgun Colour: Team" )
+	HaloSelection:AddChoice( "Halo/Ms_OverridePhysgun Colour: Health" )
+	HaloSelection:AddChoice( "Halo/Ms_OverridePhysgun Colour: Custom" )
+	HaloSelection:AddChoice( "Halo/Ms_OverridePhysgun Colour: RAINBOW" )
+	HaloSelection.OnSelect = function( panel, index )
+		BH.Settings.Visuals.haloselection = index
+	end
+	if( BH.Settings.Visuals.haloselection )then
+		HaloSelection:ChooseOptionID( BH.Settings.Visuals.haloselection )
+	end
+	HaloSelection:SetSize( 120, 20 )
+		
+	local CheckBoxBoxes = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxBoxes:SetText( "Boxes" )
+	CheckBoxBoxes:SetToolTip( "Draws bounding boxes around players" )
+	CheckBoxBoxes:SetValue( BH.Settings.Visuals.boxes )
+	CheckBoxBoxes.OnChange = function( _, toggle )
+		BH.Settings.Visuals.boxes = toggle
+	end
+	CheckBoxBoxes:SizeToContents()
+	
+	local CheckBoxESPDistance = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxESPDistance:SetText( "ESP Dist" )
+	CheckBoxESPDistance:SetToolTip( "Adds distance from player to ESP" )
+	CheckBoxESPDistance:SetValue( BH.Settings.Visuals.Text.distance )
+	CheckBoxESPDistance.OnChange = function( _, toggle )
+		BH.Settings.Visuals.Text.distance = toggle
+	end
+	CheckBoxESPDistance:SizeToContents()
+	
+	local CheckBoxESPHealth = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxESPHealth:SetText( "ESP HP" )
+	CheckBoxESPHealth:SetToolTip( "Adds player health to ESP" )
+	CheckBoxESPHealth:SetValue( BH.Settings.Visuals.Text.health )
+	CheckBoxESPHealth.OnChange = function( _, toggle )
+		BH.Settings.Visuals.Text.health = toggle
+	end
+	CheckBoxESPHealth:SizeToContents()
+		
+	local CheckBoxESPMingeNameTags = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxESPMingeNameTags:SetText( "ESP Minges" )
+	CheckBoxESPMingeNameTags:SetToolTip( "Adds minge nametags to ESP" )
+	CheckBoxESPMingeNameTags:SetValue( BH.Settings.Visuals.Text.mingenametags )
+	CheckBoxESPMingeNameTags.OnChange = function( _, toggle )
+		BH.Settings.Visuals.Text.mingenametags = toggle
+	end
+	CheckBoxESPMingeNameTags:SizeToContents()
+
+	local CheckBoxESPNames = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxESPNames:SetText( "ESP Name" )
+	CheckBoxESPNames:SetToolTip( "Adds player name to ESP" )
+	CheckBoxESPNames:SetValue( BH.Settings.Visuals.Text.names )
+	CheckBoxESPNames.OnChange = function( _, toggle )
+		BH.Settings.Visuals.Text.names = toggle
+	end
+	CheckBoxESPNames:SizeToContents()
+	
+	local CheckBoxESPEnabled = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxESPEnabled:SetText( "ESP On" )
+	CheckBoxESPEnabled:SetToolTip( "HUR DURDURFFFHURRFF I CAN'T STOP SUCKING DICKS DURFF" )
+	CheckBoxESPEnabled:SetValue( BH.Settings.Visuals.Text.on )
+	CheckBoxESPEnabled.OnChange = function( _, toggle )
+		BH.Settings.Visuals.Text.on = toggle
+	end
+	CheckBoxESPEnabled:SizeToContents()
+
+	local CheckBoxESPRank = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxESPRank:SetText( "ESP Rank" )
+	CheckBoxESPRank:SetToolTip( "Adds player rank to ESP" )
+	CheckBoxESPRank:SetValue( BH.Settings.Visuals.Text.rank )
+	CheckBoxESPRank.OnChange = function( _, toggle )
+		BH.Settings.Visuals.Text.rank = toggle
+	end
+	CheckBoxESPRank:SizeToContents()
+	
+	local CheckBoxESPVel = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxESPVel:SetText( "ESP Speed" )
+	CheckBoxESPVel:SetToolTip( "Adds player's velocity to ESP" )
+	CheckBoxESPVel:SetValue( BH.Settings.Visuals.Text.espvelocity )
+	CheckBoxESPVel.OnChange = function( _, toggle )
+		BH.Settings.Visuals.Text.espvelocity = toggle
+	end
+	CheckBoxESPVel:SizeToContents()
+
+	local CheckBoxESPWeapon = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxESPWeapon:SetText( "ESP Weapon" )
+	CheckBoxESPWeapon:SetToolTip( "Adds player weapon to ESP" )
+	CheckBoxESPWeapon:SetValue( BH.Settings.Visuals.Text.weapon )
+	CheckBoxESPWeapon.OnChange = function( _, toggle )
+		BH.Settings.Visuals.Text.weapon = toggle
+	end
+	CheckBoxESPWeapon:SizeToContents()
+	
+	local CheckBoxEyeTrace = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxEyeTrace:SetText( "Eye Trace" )
+	CheckBoxEyeTrace:SetToolTip( "Draw a beam showing the player's aim" )
+	CheckBoxEyeTrace:SetValue( BH.Settings.Visuals.eyetrace )
+	CheckBoxEyeTrace.OnChange = function( _, toggle )
+		BH.Settings.Visuals.eyetrace = toggle
+	end
+
+	local CheckBoxHeadSmashBall = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxHeadSmashBall:SetText( "Headsmash Ball" )
+	CheckBoxHeadSmashBall:SetTooltip( "ENABLES THE MAGICAL HEADSMASH BALL" )
+	CheckBoxHeadSmashBall:SetValue( BH.Settings.Visuals.headsmashball )
+	CheckBoxHeadSmashBall.OnChange = function( _, toggle )
+		BH.Settings.Visuals.headsmashball = toggle
+	end
+	CheckBoxHeadSmashBall:SizeToContents()
+
+	local CheckBoxHeadSmash = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxHeadSmash:SetText( "Headsmash Beam" )
+	CheckBoxHeadSmash:SetTooltip( "ENABLES THE MAGICAL HEADSMASH BEAM" )
+	CheckBoxHeadSmash:SetValue( BH.Settings.Visuals.headsmash )
+	CheckBoxHeadSmash.OnChange = function( _, toggle )
+		BH.Settings.Visuals.headsmash = toggle
+	end
+	CheckBoxHeadSmash:SizeToContents()	
+	
+	local CheckBoxPlayerChams = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxPlayerChams:SetText( "Chams" )
+	CheckBoxPlayerChams:SetToolTip( "Enables player chams" )
+	CheckBoxPlayerChams:SetValue( BH.Settings.Visuals.playerchams )
+	CheckBoxPlayerChams.OnChange = function( _, toggle )
+		BH.Settings.Visuals.playerchams = toggle
+	end
+	CheckBoxPlayerChams:SizeToContents()
+	
+	local CheckBoxHalos = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxHalos:SetText( "Halos" )
+	CheckBoxHalos:SetToolTip( "Makes people glow and shit" )
+	CheckBoxHalos:SetValue( BH.Settings.Visuals.halos )
+	CheckBoxHalos.OnChange = function( _, toggle )
+		BH.Settings.Visuals.halos = toggle
+	end
+	CheckBoxHalos:SizeToContents()
+	
+	local CheckBoxPlayerLeading = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxPlayerLeading:SetText( "Prediction" )
+	CheckBoxPlayerLeading:SetToolTip( "Player trajectory prediction, pretty shitty" )
+	CheckBoxPlayerLeading:SetValue( BH.Settings.Visuals.playerleading )
+	CheckBoxPlayerLeading.OnChange = function( _, toggle )
+		BH.Settings.Visuals.playerleading = toggle
+	end
+	CheckBoxPlayerLeading:SizeToContents()
+	
+	local CheckBoxPlayerLighting = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxPlayerLighting:SetText( "Shadows" )
+	CheckBoxPlayerLighting:SetTooltip( "Enable shadows on player chams" )
+	CheckBoxPlayerLighting:SetValue( BH.Settings.Visuals.playersuppressenginelighting )
+	CheckBoxPlayerLighting.OnChange = function( _, toggle )
+		BH.Settings.Visuals.playersuppressenginelighting = toggle
+	end
+	CheckBoxPlayerLighting:SizeToContents()
+		
+	local CheckBoxTeamColours = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxTeamColours:SetText( "Team Colour" )
+	CheckBoxTeamColours:SetToolTip( "Sets each player's esp info, chams and beams to the colour of their team" )
+	CheckBoxTeamColours:SetValue( BH.Settings.Visuals.teamcolours )
+	CheckBoxTeamColours.OnChange = function( _, toggle )
+		BH.Settings.Visuals.teamcolours = toggle		
+		if( !BH.Settings.Visuals.teamcolours ) then
+			BH.UpdateCol = true
+		end
+	end
+	CheckBoxTeamColours:SizeToContents()
+	
+	local CheckBoxTraitor = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxTraitor:SetText( "Traitors" )
+	CheckBoxTraitor:SetToolTip( "Alerts you if anyone equips a traitor weapon" )
+	CheckBoxTraitor:SetValue( BH.Settings.Visuals.traitor )
+	CheckBoxTraitor.OnChange = function( _, toggle )
+		BH.Settings.Visuals.traitor = toggle
+	end
+	CheckBoxTraitor:SizeToContents()
+	
+	local CheckBoxVerticalBeam = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxVerticalBeam:SetText( "Vert Beam" )
+	CheckBoxVerticalBeam:SetTooltip( "Enables vertical beam" )
+	CheckBoxVerticalBeam:SetValue( BH.Settings.Visuals.verticalbeam )
+	CheckBoxVerticalBeam.OnChange = function( _, toggle )
+		BH.Settings.Visuals.verticalbeam = toggle
+	end
+	CheckBoxVerticalBeam:SizeToContents()
+	
+	local CheckBoxWeaponChams = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxWeaponChams:SetText( "Weapon Chams" )
+	CheckBoxWeaponChams:SetTooltip( "Add weapons to player chams" )
+	CheckBoxWeaponChams:SetValue( BH.Settings.Visuals.weaponchams )
+	CheckBoxWeaponChams.OnChange = function( _, toggle )
+		BH.Settings.Visuals.weaponchams = toggle
+	end
+	CheckBoxWeaponChams:SizeToContents()
+	
+	SheetLong:AddItem( CustomR )
+	SheetLong:AddItem( CustomG )
+	SheetLong:AddItem( CustomB )
+	SheetLong:AddItem( HaloSelection )	
+	
+	SheetLeft:AddItem( CheckBoxESPDistance )
+	SheetMid:AddItem( CheckBoxESPHealth )
+	SheetRight:AddItem( CheckBoxESPMingeNameTags )
+	
+	SheetLeft:AddItem( CheckBoxESPNames )
+	SheetMid:AddItem( CheckBoxESPEnabled )
+	SheetRight:AddItem( CheckBoxESPRank )
+	
+	SheetLeft:AddItem( CheckBoxESPVel )
+	SheetMid:AddItem( CheckBoxESPWeapon )	
+	SheetRight:AddItem( CheckBoxBoxes )	
+	
+	SheetLeft:AddItem( CheckBoxEyeTrace )
+	SheetMid:AddItem( CheckBoxHeadSmashBall )
+	SheetRight:AddItem( CheckBoxHeadSmash )	
+	
+	SheetLeft:AddItem( CheckBoxPlayerChams )
+	SheetMid:AddItem( CheckBoxHalos )	
+	SheetRight:AddItem( CheckBoxPlayerLeading )	
+	
+	SheetLeft:AddItem( CheckBoxPlayerLighting )	
+	SheetMid:AddItem( CheckBoxTeamColours )
+	SheetRight:AddItem( CheckBoxTraitor )
+
+	SheetLeft:AddItem( CheckBoxVerticalBeam )	
+	SheetMid:AddItem( CheckBoxWeaponChams )
+	return PlayerVisPanel
+end
+
+local function GenerateAimbotSheet( w, h )
+	AimbotPanel = vgui.Create( "DPanel" )
+	AimbotPanel:SetPos( 2, 2 )
+	AimbotPanel:SetSize( w - 4, h - 4 )
+	AimbotPanel.Paint = function()
+		draw.RoundedBox( 3, 0, 0, AimbotPanel:GetWide(), AimbotPanel:GetTall(), Color( 50, 50, 50, 255 ) )
+	end
+	
+	local SheetLong = vgui.Create( "DPanelList", AimbotPanel )
+	SheetLong:SetPos( 2, 90 )
+	SheetLong:SetSize( 305, h )
+	SheetLong:SetSpacing( 3 )
+	SheetLong:SetPadding( 4 )
+	SheetLong:EnableVerticalScrollbar( true )
+	
+	local SheetLeft = vgui.Create( "DPanelList", AimbotPanel )
+	SheetLeft:SetPos( 2, 2 )
+	SheetLeft:SetSize( 102, h/3 )
+	SheetLeft:SetSpacing( 6 )
+	SheetLeft:SetPadding( 4 )
+	SheetLeft:EnableVerticalScrollbar( true )
+
+	local SheetMid = vgui.Create( "DPanelList", AimbotPanel )
+	SheetMid:SetPos( 100, 2 )
+	SheetMid:SetSize( 120, h/3 )
+	SheetMid:SetSpacing( 6 )
+	SheetMid:SetPadding( 4 )
+	SheetMid:EnableVerticalScrollbar( true )
+
+	local SheetRight = vgui.Create( "DPanelList", AimbotPanel )
+	SheetRight:SetPos( 190, 2 )
+	SheetRight:SetSize( 115, h/3 )
+	SheetRight:SetSpacing( 6 )
+	SheetRight:SetPadding( 4 )
+	SheetRight:EnableVerticalScrollbar( true )
+	
+	local IgnoreFriends = vgui.Create( "DCheckBoxLabel" )
+	IgnoreFriends:SetValue( BH.Settings.Aimbot.ignorefriends )
+	IgnoreFriends:SetText( "Ignore Friends" )
+	IgnoreFriends:SetTooltip( "Aimbot ignores steam friends" )
+	IgnoreFriends.OnChange = function( _, value )
+		BH.Settings.Aimbot.ignorefriends = value
+	end
+
+	local IgnoreTeammates = vgui.Create( "DCheckBoxLabel" )
+	IgnoreTeammates:SetValue( BH.Settings.Aimbot.ignoreteammates )
+	IgnoreTeammates:SetText( "Ignore Team" )
+	IgnoreTeammates:SetTooltip( "DICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKSDICKS" )
+	IgnoreTeammates.OnChange = function( _, value )
+		BH.Settings.Aimbot.ignoreteammates = value
+	end
+	
+	local ShittySilentAim = vgui.Create( "DCheckBoxLabel" )
+	ShittySilentAim:SetValue( BH.Settings.Aimbot.silent )
+	ShittySilentAim:SetText( "Silent" )
+	ShittySilentAim:SetTooltip( "Aims back to where you were previously looking after aimbotting, pretty shitty" )
+	ShittySilentAim.OnChange = function( _, value )
+		BH.Settings.Aimbot.silent = value
+	end
+	
+	local AimSmooth = vgui.Create( "DCheckBoxLabel" )
+	AimSmooth:SetValue( BH.Settings.Aimbot.aimsmoothon )
+	AimSmooth:SetText( "Smoothing" )
+	AimSmooth:SetToolTip( "Gradually moves to target instead of snapping" )
+	AimSmooth.OnChange = function( _, value )
+		BH.Settings.Aimbot.aimsmoothon = value
+	end
+	
+	local CheckBoxTracing = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxTracing:SetText( "Full Body" )
+	CheckBoxTracing:SetValue( BH.Settings.Aimbot.multitrace )
+	CheckBoxTracing:SetToolTip( "Only targets people who are entirely out in the open" )
+	CheckBoxTracing.OnChange = function( _, toggle )
+		BH.Settings.Aimbot.multitrace = toggle
+	end
+	CheckBoxTracing:SizeToContents()
+	
+	local TargetNPCs = vgui.Create( "DCheckBoxLabel" )
+	TargetNPCs:SetValue( BH.Settings.Aimbot.targetnpcs )
+	TargetNPCs:SetText( "NPCs" )
+	TargetNPCs:SetTooltip( "Take a wild guess you cunt" )
+	TargetNPCs.OnChange = function( _, value )
+		BH.Settings.Aimbot.targetnpcs = value
+	end	
+	
+	local CheckBoxNoRecoil = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxNoRecoil:SetText( "No Recoil" )
+	CheckBoxNoRecoil:SetToolTip( "Requires reconnect, won't work on a few weapon packs" )
+	CheckBoxNoRecoil:SetValue( BH.Settings.Aimbot.norecoil )	
+	CheckBoxNoRecoil.OnChange = function( _, toggle )	
+		BH.Settings.Aimbot.norecoil = toggle		
+	end	
+	CheckBoxNoRecoil:SizeToContents()
+	
+	local CheckBoxNoShake = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxNoShake:SetText( "No Shake" )
+	CheckBoxNoShake:SetValue( BH.Settings.Aimbot.noshake )
+	CheckBoxNoShake:SetToolTip( "Different thing to no recoil, will fuck things like falcop_spectate" )
+	CheckBoxNoShake.OnChange = function( _, toggle )
+		BH.Settings.Aimbot.noshake = toggle
+		if( BH.Settings.Aimbot.noshake ) then
+			HKA( "CalcView", "NoShake", NoShake ) 
+			return
+		end
+		HKR( "CalcView", "NoShake" )
+	end
+	CheckBoxNoShake:SizeToContents()
+	
+	local CheckBoxRapidFire = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxRapidFire:SetText( "Rapid Fire" )
+	CheckBoxRapidFire:SetValue( BH.Settings.TriggerBot.rapidfire )
+	CheckBoxRapidFire:SetToolTip( "Spams +attack when you left click" )
+	CheckBoxRapidFire.OnChange = function( _, toggle )
+		BH.Settings.TriggerBot.rapidfire = toggle
+	end
+	CheckBoxRapidFire:SizeToContents()
+
+	local CheckBoxTrigger = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxTrigger:SetText( "TriggerBot" )
+	CheckBoxTrigger:SetToolTip( "Automatically fires when you aim at someone" )
+	CheckBoxTrigger:SetValue( BH.Settings.TriggerBot.enabled )
+	CheckBoxTrigger.OnChange = function( _, toggle )
+		BH.Settings.TriggerBot.enabled = toggle
+	end
+	CheckBoxTrigger:SizeToContents()
+	
+	local CheckBoxOnAim = vgui.Create( "DCheckBoxLabel" )
+	CheckBoxOnAim:SetText( "Aimbot Only" )
+	CheckBoxOnAim:SetValue( BH.Settings.TriggerBot.onlyaim )
+	CheckBoxOnAim:SetToolTip( "Triggerbot will only shoot people while aimbotting" )
+	CheckBoxOnAim.OnChange = function( _, toggle )
+		BH.Settings.TriggerBot.onlyaim = toggle
+	end
+	CheckBoxOnAim:SizeToContents()
+	
+	local SliderSnap = vgui.Create( "DNumSlider" )
+	SliderSnap:SetMinMax( 0, 2 )
+	SliderSnap:SetValue( BH.Settings.Aimbot.snapwait )
+	SliderSnap:SetText( "Delay" )
+	SliderSnap:SetDecimals( 1 )
+	SliderSnap.TextArea:SetTextColor( Color( 190, 190, 190 ) )
+	SliderSnap:SetToolTip( "Delay between shooting people" )
+	SliderSnap.OnValueChanged = function( panel, value )
+		BH.Settings.Aimbot.snapwait = value
+	end
+	SliderSnap:SetSize( 120, 25 )
+	
+	local SliderFOV = vgui.Create( "DNumSlider" )
+	SliderFOV:SetMinMax( 1, 180 )
+	SliderFOV:SetValue( BH.Settings.Aimbot.maxfov )
+	SliderFOV:SetText( "FOV" )
+	SliderFOV:SetDecimals( 0 )
+	SliderFOV.TextArea:SetTextColor( Color( 190, 190, 190 ) )
+	SliderFOV:SetToolTip( "Degrees from crosshair in which the aimbot will shoot people" )
+	SliderFOV.OnValueChanged = function( panel, value )
+		BH.Settings.Aimbot.maxfov = value
+	end
+	SliderFOV:SetSize( 120, 25 )
+	
+	local SliderSmooth = vgui.Create( "DNumSlider" )
+	SliderSmooth:SetMinMax( 1, 50 )
+	SliderSmooth:SetValue( BH.Settings.Aimbot.aimsmooth )
+	SliderSmooth:SetText( "Smoothed Aim Speed" )
+	SliderSmooth:SetDecimals( 0 )
+	SliderSmooth.TextArea:SetTextColor( Color( 190, 190, 190 ) )
+	SliderSmooth:SetToolTip( "How fast smoothed aim shoots people" )
+	SliderSmooth.OnValueChanged = function( panel, value )
+		BH.Settings.Aimbot.aimsmooth = value
+	end
+	SliderSmooth:SetSize( 120, 25 )	
+ 
+	local LabelBone = vgui.Create( "DLabel" )
+	LabelBone:SetText( "Target Area" )
+	LabelBone:SizeToContents()
+
+	local BoneComboBox = vgui.Create( "DComboBox" )
+	BoneComboBox:SetValue( BH.Settings.Aimbot.AimFor )
+	BoneComboBox.OnSelect = function( _, _, value )		
+		BH.Settings.Aimbot.AimFor = value
+	end
+	for k,v in pairs( BH.Settings.Aimbot.Bones ) do
+		BoneComboBox:AddChoice( v )
+	end
+		
+	SheetLeft:AddItem( IgnoreFriends )
+	SheetMid:AddItem( IgnoreTeammates )	
+	SheetRight:AddItem( ShittySilentAim )
+	
+	SheetLeft:AddItem( AimSmooth )
+	SheetMid:AddItem( CheckBoxTracing )
+	SheetRight:AddItem( TargetNPCs )
+	
+	SheetLeft:AddItem( CheckBoxNoRecoil )
+	SheetMid:AddItem( CheckBoxNoShake )
+	SheetRight:AddItem( CheckBoxRapidFire )	
+	
+	SheetLeft:AddItem( CheckBoxTrigger )
+	SheetMid:AddItem( CheckBoxOnAim )
+	
+	SheetLong:AddItem( SliderSnap )
+	SheetLong:AddItem( SliderFOV )
+	SheetLong:AddItem( SliderSmooth )
+	SheetLong:AddItem( LabelBone )
+	SheetLong:AddItem( BoneComboBox ) 
+	return AimbotPanel 
+end
+
+local function GenerateFriendsSheet( w, h )
+	FriendsPanel = vgui.Create( "DPanel" )
+	FriendsPanel:SetPos( 2, 2 )
+	FriendsPanel:SetSize( w - 4, h - 4 )
+	FriendsPanel.Paint = function()
+		draw.RoundedBox( 3, 0, 0, FriendsPanel:GetWide(), FriendsPanel:GetTall(), Color( 50, 50, 50, 255 ) )
+	end
+	
+	local SheetLeft = vgui.Create( "DPanelList", FriendsPanel )
+	SheetLeft:SetPos( 2, 2 )
+	SheetLeft:SetSize( w, h )
+	SheetLeft:SetSpacing( 3 )
+	SheetLeft:SetPadding( 4 )
+	SheetLeft:EnableVerticalScrollbar( true )
+ 
+	local SheetRight = vgui.Create( "DPanelList", FriendsPanel )
+	SheetRight:SetPos( 2, 2 )
+	SheetRight:SetSize( w, h )
+	SheetRight:SetSpacing( 6 )
+	SheetRight:SetPadding( 4 )
+	SheetRight:EnableVerticalScrollbar( true )
+
+	PlayerList = vgui.Create( "DListView", SheetRight )
+	PlayerList:SetPos( 4, 4 )
+	PlayerList:AddColumn( "Potential Targets" )
+	PlayerList:SetSize( w /2.22, h -48 )
+	PlayerList:SetSortable( true )
+	PlayerList:SetMultiSelect( false )
+	PlayerList.RebuildList = function()
+		PlayerList:Clear()
+		PlayerList.friends = {}
+		BH.PotentialTargetListNames = {}
+		
+		for k,v in pairs( player.GetAll() ) do
+			if( !IsValid( v ) or v == LocalPlayer() or table.HasValue( BH.Friends, v ) or table.HasValue( BH.PotentialTargetListNames, v:Nick() ) or table.HasValue( PlayerList.friends, v ) ) then continue end
+			table.insert( PlayerList.friends, v )
+			table.insert( BH.PotentialTargetListNames, v:Nick() )
+		end
+			
+		table.sort( BH.PotentialTargetListNames )		
+		for k,v in pairs( BH.PotentialTargetListNames ) do
+			PlayerList:AddLine( v )
+		end
+	end
+	
+	PlayerList.OnRowSelected = function( panel, line )
+		AddFriend( FindByName( BH.PotentialTargetListNames[ line ] ) )
+		PlayerList:RebuildList()
+		FriendsList:RebuildList()
+	end 
+	
+	FriendsList = vgui.Create( "DListView", SheetRight )
+	FriendsList:AddColumn( "Friends" )
+	FriendsList:SetPos( w /2 -8, 4 )
+	FriendsList:SetSize( w /2.213, h -48 )
+	FriendsList:SetSortable( true )
+	FriendsList:SetMultiSelect( false )
+	FriendsList.RebuildList = function()
+		FriendsList:Clear()
+		FriendsList.friends = {}
+		BH.FriendsListNames = {}
+		for k,v in pairs( BH.Friends ) do
+			if( !IsValid( v ) or v == LocalPlayer() ) then continue end
+			table.insert( FriendsList.friends, v )
+			table.insert( BH.FriendsListNames, v:Nick() )
+		end		
+		table.sort( BH.FriendsListNames )		
+		for k,v in pairs( BH.FriendsListNames ) do
+			FriendsList:AddLine( v )
+		end
+	end
+	FriendsList.OnRowSelected = function( panel, line )
+		RemoveFriend( FindByName( BH.FriendsListNames[ line ] ) )
+		FriendsList:RebuildList()
+		PlayerList:RebuildList()
+	end
+	FriendsList:RebuildList()
+	PlayerList:RebuildList()
+	return FriendsPanel
+end
+
+local function GenerateEntsSheet( w, h )
+	EntPanel = vgui.Create( "DPanel" )
+	EntPanel:SetPos( 2, 2 )
+	EntPanel:SetSize( w - 4, h - 4 )
+	EntPanel.Paint = function()
+		draw.RoundedBox( 3, 0, 0, EntPanel:GetWide(), EntPanel:GetTall(), Color( 50, 50, 50, 255 ) )
+	end
+	local SheetLeft = vgui.Create( "DPanelList", EntPanel )
+	SheetLeft:SetPos( 2, 2 )
+	SheetLeft:SetSize( w, h )
+	SheetLeft:SetSpacing( 3 )
+	SheetLeft:SetPadding( 4 )
+	SheetLeft:EnableVerticalScrollbar( true ) 
+ 
+	EntList = vgui.Create( "DListView", SheetLeft )
+	EntList:AddColumn( "Entities On The Server" )
+	EntList:SetPos( 4, 4 )
+	EntList:SetSize( w/2.22, h-48 )
+	EntList:SetSortable( true )
+	EntList:SetMultiSelect( false )
+	EntList.Ents = {}
+	EntList.RebuildList = function()
+		EntList:Clear()
+		EntList.Ents = {}
+		
+		for k,v in pairs( ents.GetAll() ) do
+			if( !table.HasValue( BH.Settings.Visuals.customents, v:GetClass() ) and !string.find( string.lower( v:GetClass() ), "class c" ) and !string.find( string.lower( v:GetClass() ), "func_" ) and !table.HasValue( EntList.Ents, v:GetClass() ) ) then
+				table.insert( EntList.Ents, v:GetClass() )
+			end
+		end	
+		table.sort( EntList.Ents )		
+		for k,v in pairs( EntList.Ents ) do
+			EntList:AddLine( v )
+		end
+	end
+	
+	EntList.OnRowSelected = function( panel, line )
+		table.insert( EntList.Ents, panel:GetLine( line ):GetValue( 1 ) )
+		table.insert( BH.Settings.Visuals.customents, panel:GetLine( line ):GetValue( 1 ) )
+		EntList:RebuildList()
+		ESPEntList:RebuildList()
+	end
+	
+	ESPEntList = vgui.Create( "DListView", SheetLeft )
+	ESPEntList:AddColumn( "Entities Displayed On ESP" )
+	ESPEntList:SetPos( w/2 -8, 4 )
+	ESPEntList:SetSize( w/2.213, h-48 )
+	ESPEntList:SetSortable( true )
+	ESPEntList:SetMultiSelect( false )
+	ESPEntList.RebuildList = function()
+		ESPEntList:Clear()
+		table.sort( BH.Settings.Visuals.customents )
+		for k,v in pairs( BH.Settings.Visuals.customents ) do
+			ESPEntList:AddLine( v )
+		end 
+	end
+	ESPEntList.OnRowSelected = function( panel, line )
+		for k,v in pairs( BH.Settings.Visuals.customents ) do
+			if( v == panel:GetLine( line ):GetValue( 1 ) ) then
+				for k2, v2 in pairs( EntList.Ents ) do
+					if( v == v2 ) then
+						table.remove( EntList.Ents, k2 )
+					end
+				end
+				table.remove( BH.Settings.Visuals.customents, k )
+			end
+		end
+		ESPEntList:RebuildList()
+		EntList:RebuildList()
+	end
+	ESPEntList:RebuildList()
+	EntList:RebuildList()
+	return EntPanel
+end
+
+local function GenerateRopeSheet( w, h )
+	RopePanel = vgui.Create( "DPanel" )
+	RopePanel:SetPos( 2, 2 )
+	RopePanel:SetSize( w - 4, h - 4 )
+	RopePanel.Paint = function()
+		draw.RoundedBox( 3, 0, 0, RopePanel:GetWide(), RopePanel:GetTall(), Color( 50, 50, 50, 255 ) )
+	end
+	
+	local MaterialList = vgui.Create( "DListView", RopePanel )
+	MaterialList:SetPos( 6, 6 )
+	MaterialList:SetSize( w -29, h-48 )
+	MaterialList:SetMultiSelect( false )
+	MaterialList:AddColumn( "Materials - Double click sets rope/slider/wire etc" )
+	MaterialList:SetSortable( false )
+
+	MaterialNames = ( file.Read( "materials_list.txt", "DATA" ) )
+	for k,v in pairs( string.Explode( ",", MaterialNames ) ) do 
+		MaterialList:AddLine( string.Trim( v ) )
+	end
+		
+	MaterialList.OnRowSelected = function( panel, line )
+		selectedmat = panel:GetLine( line ):GetValue( 1 )
+		if( string.len( selectedmat ) < 1 ) or string.find( selectedmat, "##" ) then return end
+		LogMsg( "UPDATED MATERIAL PREVIEW" )
+		BH.Settings.Visuals.RopeMaterial = selectedmat
+	end
+	
+	MaterialList.DoDoubleClick = function( panel, line )
+		if( string.len( selectedmat ) < 1 ) or string.find( selectedmat, "##" ) then return end		
+		for k,v in pairs( BH.MaterialsAndWidths ) do
+			if( string.find( v, "material" ) ) then
+				RCC( v, selectedmat )
+				LogMsg( "UPDATED " .. v )
+			elseif( string.find( v, "width" ) ) then
+				RCC( v, 999999 )
+				LogMsg( "UPDATED " .. v )				
+			end
+		end		
+	end	
+	return RopePanel
+end
+ 
+local function PopulateVGUIElements()
+	Window = vgui.Create( "DFrame" )
+	Window:SetSize( 338, 610 )
+	Window:SetPos( ScrW() /2 -( Window:GetWide() /2 ), ScrH() /2 -( Window:GetTall() /2 ) )
+	Window:SetTitle( string.rep( " ", Window:GetWide() /8 ) ..	"" )
+	Window:ShowCloseButton( false )
+	PreviewWindow = vgui.Create( "DFrame" )
+	PreviewWindow:SetSize( 305, 305 )
+	PreviewWindow:SetDraggable( false )	
+	Window.OnClose = function()
+		BH.MenuFirstPass = true
+		BH.StayOpen = false
+		PreviewWindow:Close()
+		HKR( "Think", "UpdatePreview" )
+	end
+	Window:MakePopup()
+	
+	PreviewWindow:SetTitle( string.rep( " ", PreviewWindow:GetWide() /10 ) .. "Rope Material Preview" )
+	PreviewWindow:ShowCloseButton( false )
+	PreviewWindow:MakePopup()	
+	local Panel = vgui.Create( "DPanel", PreviewWindow )
+	Panel:SetPos( 2, 2 )
+	Panel:SetSize( PreviewWindow:GetWide() - 4, PreviewWindow:GetTall() - 4 )
+	Panel.Paint = function()
+		draw.RoundedBox( 3, 0, 0, Panel:GetWide(), Panel:GetTall(), Color( 50, 50, 50, 255 ) )
+	end	
+	local Preview = vgui.Create( "Material", Panel )
+	Preview:SetSize( Panel:GetWide() - 4, Panel:GetTall() - 4 )
+	Preview:SetPos( 2, 2 )
+	Preview.AutoSize = false	
+	function UpdatePreview()
+		if( RopePanel:IsVisible() ) then
+			local WindowX, WindowY = Window:GetPos()
+			PreviewWindow:SetPos( ( WindowX + Window:GetWide() /2 ) +( PreviewWindow:GetWide() /1.81 ), ( WindowY + Window:GetTall() /2 ) -( PreviewWindow:GetTall() /2 ) )
+			PreviewWindow:SetVisible( true )
+			Preview:SetMaterial( BH.Settings.Visuals.RopeMaterial )						
+		end		
+		if( VisualPanel:IsVisible() or PlayerVisPanel:IsVisible() or AimbotPanel:IsVisible() or FriendsPanel:IsVisible() or EntPanel:IsVisible() ) then
+			PreviewWindow:SetVisible( false )			
+		end
+	end
+	
+	PropertySheet = vgui.Create( "DPropertySheet", Window )
+	PropertySheet:SetSize( Window:GetWide() - 8, Window:GetTall() - 35 )
+	PropertySheet:SetPos( 4, 30 )
+	PropertySheet:SetPadding( 8 )
+	PropertySheet:AddSheet( "Aimbot", GenerateAimbotSheet( PropertySheet:GetWide(), PropertySheet:GetTall() ), false, false, false, "Settings related to shooting stuff" )	
+	PropertySheet:AddSheet( "ESP", GeneratePlayerVisualsSheet( PropertySheet:GetWide(), PropertySheet:GetTall() ), false, false, false, "Visuals whatcome go on players, huh" )
+	PropertySheet:AddSheet( "Visuals", GenerateVisualsSheet( PropertySheet:GetWide(), PropertySheet:GetTall() ), false, false, false, "Visual shit" )
+	PropertySheet:AddSheet( "Friends", GenerateFriendsSheet( PropertySheet:GetWide(), PropertySheet:GetTall() ), false, false, false, "Aimbot friends list" )
+	PropertySheet:AddSheet( "Ents", GenerateEntsSheet( PropertySheet:GetWide(), PropertySheet:GetTall() ), false, false, false, "Entities to display on ESP" )
+	if( ConVarExists( "rope_material" ) ) then
+		if( !file.Exists( "materials_list.txt", "DATA" ) ) then
+			file.Write( "materials_list.txt", "effects/alyxmonitor_talk, \nmatsys_regressiontest/background, \n, \nto edit goto garrysmod/data/materials_list.txt, \nDON'T FUCKING FORGET THE COMMAS, \nexcept for the last one which doesn't need it, \nunless you want a blank space being a cunt, \nand shitting up the last line of the list like this, ", "DATA" )
+		end
+		PropertySheet:AddSheet( "Ropes", GenerateRopeSheet( PropertySheet:GetWide(), PropertySheet:GetTall() ), false, false, false, "Ropes" )
+	end	
+	Window:SetVisible( false )	
+	PreviewWindow:SetVisible( false )
+end 
+
+local function OpenMenu()
+	LogMsg( "OPENING MENU" )
+	PopulateVGUIElements()
+	FriendsList:RebuildList()
+	PlayerList:RebuildList()
+	Window:SetVisible( true )	
+	HKA( "Think", "UpdatePreview", UpdatePreview )
+	BH.MenuOpen = true
+	if( !BH.MenuFirstPass and BH.MenuTimer >CurTime() )then
+		LogMsg( "HIT 1" )
+		Window:ShowCloseButton( true )
+		BH.MenuTimer = CurTime() +0.28
+		BH.StayOpen = true
+	else
+		LogMsg( "HIT 2" )
+		BH.MenuTimer = CurTime() +0.28
+		Window:ShowCloseButton( false )
+		BH.MenuFirstPass = false
+	end
+	LogMsg( "OPENING MENU FINISHED" )
+end
+CCA( "+ms_menu", OpenMenu )
+
+local function CloseMenu()
+	LogMsg( "CLOSING MENU" )
+	if( !Window ) then
+		PopulateVGUIElements()
+	end
+	BH.MenuOpen = false
+	
+	if( !BH.StayOpen ) then
+		HKR( "Think", "UpdatePreview" )	
+	end
+	
+	if( BH.MenuTimer < CurTime() and !BH.StayOpen ) then
+		LogMsg( "HIT 3" )
+		Window:SetVisible( false )
+		PreviewWindow:SetVisible( false )
+		BH.MenuFirstPass = true	
+	end
+	if( BH.MenuTimer > CurTime() )then
+		LogMsg( "HIT 4" )
+		if( !BH.StayOpen )then
+			LogMsg( "HIT 4.1" )
+			Window:SetVisible( false )
+			PreviewWindow:SetVisible( false )			
+		end
+		BH.MenuFirstPass = false	
+	end
+	LogMsg( "Settings Saved" )
+	file.Write( "mssettings.txt", util.TableToJSON( BH.Settings ) )
+	LogMsg( "CLOSING MENU FINISHED" )
+end 
+CCA( "-ms_menu", CloseMenu )
+
+surface.CreateFont( "ass", { font = "coolvetica", size = 18, antialias = true } )
+
+local MultiTracePositions = {
+	function( p )
+		if( p.GetShootPos ) then
+			return p:GetShootPos()
+		else 
+			return p:GetPos()
+		end
+	end, 	
+	function( p )
+		return p:GetPos()
+	end, 
+	function( p )
+		return p:GetPos() + Vector( 0, 0, 25 )
+	end
+}
+
+local function DebugToggle()
+	BH.Settings.Debug = !BH.Settings.Debug
+	EnabledDisabled( "DEBUG MESSAGES", BH.Settings.Debug )
+end
+CCA( "ms_debug", DebugToggle )
+
+local function ClearTList()
+	BH.Traitors = {}
+	BH.DetectingTs = false
+	LogMsg( "NEW ROUND - TRAITOR LIST CLEARED" )
+end
+HKA( "TTTPrepareRound", "ClearTList", ClearTList )
+local function StartDetectingTs()
+	BH.DetectingTs = true
+	LogMsg( "TRAITORS SELECTED - CHECKING FOR TRAITOR WEAPONS" )
+end
+HKA( "TTTBeginRound", "StartDetectingTs", StartDetectingTs )
+ 
+local function GetPosition( ent )
+	if( ent.GetShootPos ) then
+		return ent:GetShootPos()
+	elseif( ent.GetPos ) then
+		return ent:GetPos()
+	end	
+end
+
+function IsInSpawn( pos )
+	if( !string.find( string.lower( game.GetMap() ), "downtown" ) ) then return false end
+	return( pos.x >BH.SpawnMinBounds.x and pos.x <BH.SpawnMaxBounds.x and pos.y >BH.SpawnMinBounds.y and pos.y <BH.SpawnMaxBounds.y and pos.z >BH.SpawnMinBounds.z and pos.z <BH.SpawnMaxBounds.z )
+end
+
+local function IsVisible( ply )
+	local Visible = true	
+	if( BH.Settings.Aimbot.multitrace ) then
+		for k,v in pairs( MultiTracePositions ) do
+			local Trace = util.TraceLine( { start = LocalPlayer():GetShootPos(), endpos = v( ply ), mask = MASK_SHOT, filter = { LocalPlayer(), ply } } )			
+			if( Trace.Hit ) then
+				Visible = false
+			end			
+		end
+	else
+		local Trace = util.TraceLine( { start = LocalPlayer():GetShootPos(), endpos = GetPosition( ply ), mask = MASK_SHOT, filter = { LocalPlayer(), ply } } )
+		return !Trace.Hit
+	end	
+	return Visible
+end
+
+local function GetFOV( ply )
+	local Ang = ( ( ply:GetPos() + Vector( 0, 0, 40 ) ) -LocalPlayer():GetPos() ):Angle()
+	local DiffX = math.abs( math.NormalizeAngle( LocalPlayer():EyeAngles().p - Ang.p ) )
+	local DiffY = math.abs( math.NormalizeAngle( LocalPlayer():EyeAngles().y - Ang.y ) )
+	return DiffX, DiffY
+end
+
+local function IsInFOV( ply )
+	local DiffX, DiffY = GetFOV( ply )
+	return DiffX <= BH.Settings.Aimbot.maxfov and DiffY <= BH.Settings.Aimbot.maxfov
+end
+
+local function IsOutOfFOV( ent )
+	if( ent == LocalPlayer() or LocalPlayer():InVehicle() or BH.Settings.Visuals.thirdperson or GetViewEntity() != LocalPlayer() ) then return end
+	DiffX, DiffY = GetFOV( ent )
+	if( DiffX <= 100 and DiffY <= 100 ) then return false end
+	return true
+end
+
+local function GetSuitableTarget()
+	BH.SnapBack = true
+	local ply
+	BH.SuitableTargetTable = player.GetAll()	
+	BH.MaxFOV = 180	
+	if( BH.Settings.Aimbot.targetnpcs ) then
+		for k,v in pairs( BH.TargetNPCClasses ) do
+			table.Add( BH.SuitableTargetTable, ents.FindByClass( v ) )
+		end
+	end	
+	
+	table.sort( BH.SuitableTargetTable, function( a, b ) local aX, aY = GetFOV( a ) local bX, bY = GetFOV( b ) return aX + aY < bX + bY end )	
+	for k,v in pairs( BH.SuitableTargetTable ) do
+		if( !IsValid( v ) or v == LocalPlayer() or table.HasValue( BH.Friends, v ) or !IsInFOV( v ) or !IsVisible( v ) or v:Health()<1 or IsInSpawn( v:GetPos() ) --[[or v:GetMoveType() == 0 ]]or v:IsPlayer() and ( v:InVehicle() or v:GetObserverTarget() or ( gmod.GetGamemode().Name == "Trouble in Terrorist Town" and team.GetName( LocalPlayer():Team() ) == "Spectators" and team.GetName( v:Team() ) != "Spectators" ) or ( BH.Settings.Aimbot.ignorefriends and v:GetFriendStatus() == "friend" ) or ( BH.Settings.Aimbot.ignoreteammates and v:Team() == LocalPlayer():Team() ) ) or ( v:IsNPC() and v:GetClass() == "npc_turret_floor" ) ) then continue end
+		ply = v
+		break
+	end
+	return ply
+end
+
+//isolate
+local function Isolate( p, c, a )
+	if( !a[ 1 ] ) then return end
+	if( a[ 1 ] == "*" )then
+		BH.Isolated = {}
+		return
+	end	
+	if( a[ 1 ] == "admins" ) then
+		for k,v in pairs( player.GetAll() ) do
+			if( !v:IsAdmin() ) then continue end
+			table.insert( BH.Isolated, v )
+		end
+		return
+	end	
+	if( a[ 1 ] == "friends" ) then
+		for k,v in pairs( player.GetAll() ) do
+			if( v:GetFriendStatus() != "friend" ) then continue end
+			table.insert( BH.Isolated, v )
+		end
+		return
+	end
+	if( !FindByName( a[ 1 ] ) ) then return
+		MSMsg( "COULDN'T FIND PLAYER: " .. a[ 1 ] )
+	end
+	table.insert( BH.Isolated, FindByName( a[ 1 ] ) )
+end
+CCA( "ms_isolate", Isolate )
+
+//priority
+local function Priority( p, c, a )
+	if( !a[ 1 ] ) then return end
+	if( !FindByName( a[ 1 ] ) ) then return
+		MSMsg( "COULDN'T FIND PLAYER: " .. a[ 1 ] )
+	end
+	table.insert( BH.HighPriority, FindByName( a[ 1 ] ) )
+end
+CCA( "ms_priority", Priority )
+local function NoPriority( p, c, a )
+	if( !a[ 1 ] ) then return end
+	if( !FindByName( tostring( a[ 1 ] ) ) ) then return
+		MSMsg( "COULDN'T FIND PLAYER: " .. a[ 1 ] )
+	end
+	for k,v in pairs( BH.HighPriority ) do
+		if( v != FindByName( tostring( a[ 1 ] ) ) ) then continue end
+		table.remove( BH.HighPriority, k )
+	end
+end
+CCA( "ms_nopriority", NoPriority )
+
+//track
+local function Track( p, c, a )
+	if( !a[ 1 ] ) then return end
+	if( a[ 1 ] == "*" ) then
+		HKA( "Think", "TrackEveryone", function()
+			BH.Tracked = table.Copy( player.GetAll() )
+		end )
+		return
+	end	
+	if( 	a[ 1 ] == "admins" ) then
+		for k,v in pairs( player.GetAll() ) do
+			if( !v:IsAdmin() ) then continue end
+			table.insert( BH.Tracked, v )
+		end
+		return
+	end	
+	if( a[ 1 ] == "friends" ) then
+		for k,v in pairs( player.GetAll() ) do
+			if( v:GetFriendStatus() != "friend" ) then continue end
+			table.insert( BH.Tracked, v )
+		end
+		return
+	end
+	if( !FindByName( a[ 1 ] ) ) then return
+		MSMsg( "COULDN'T FIND PLAYER: " .. a[ 1 ] )
+	end
+	table.insert( BH.Tracked, FindByName( a[ 1 ] ) )
+end
+CCA( "ms_track", Track )
+local function LoseTrack( p, c, a )
+	if( !a[ 1 ] or #BH.Tracked < 1 ) then return end		
+	HKR( "Think", "TrackEveryone" )	
+	if a[ 1 ] == "*" then 
+		BH.Tracked = {}
+		return
+	end	
+	if( !FindByName( a[ 1 ] ) ) then return
+		MSMsg( "COULDN'T FIND PLAYER: " .. a[ 1 ] )
+	end
+	for k,v in pairs( BH.Tracked ) do
+		if v != FindByName( a[ 1 ] ) then continue end
+		table.remove( BH.Tracked, k )
+	end
+end
+CCA( "ms_losetrack", LoseTrack )
+
+//clientside chat mute
+local function MSMute( p, c, a )
+	if( !a[ 1 ] ) then return end
+	if( a[ 1 ] == "*" )then
+		BH.MutedCunts = table.Copy( player.GetAll() )
+		MSMsg( "MUTED EVERYONE" )
+		return
+	end
+	if( !FindByName( a[ 1 ] ) ) then return
+		MSMsg( "COULDN'T FIND PLAYER: " .. a[ 1 ] )
+	end	
+	table.insert( BH.MutedCunts, FindByName( a[ 1 ] ) )
+	MSMsg( "MUTED " .. FindByName( a[ 1 ] ):Nick() )
+end
+CCA( "ms_mute", MSMute )
+local function MSUnMute( p, c, a )
+	if( !a[ 1 ] ) then return end
+	if( a[ 1 ] == "*" )then
+		BH.MutedCunts = {}
+		MSMsg( "UNMUTED EVERYONE" )
+		return
+	end
+	if( !FindByName( a[ 1 ] ) ) then return
+		MSMsg( "COULDN'T FIND PLAYER: " .. a[ 1 ] )
+	end
+	for k,v in pairs( BH.MutedCunts ) do
+		if( v != FindByName( a[ 1 ] ) ) then continue end		
+		table.remove( BH.MutedCunts, k )
+		MSMsg( "UNMUTED " .. v:Nick() )
+	end
+end
+CCA( "ms_unmute", MSUnMute )
+local function MuteChat( p, m )
+	if( p == LocalPlayer() or #BH.MutedCunts < 1 ) or !table.HasValue( BH.MutedCunts, p ) then return end
+	LogMsg( p:Nick() .. "( MUTED ): " .. m )
+	return true
+end
+HKA( "OnPlayerChat", "MuteChat", MuteChat )
+
+//clientside voice mute
+local function MSGag( p, c, a )
+	if( !a[ 1 ] ) then return end
+
+	if( a[ 1 ] == "*" ) then
+		for k,v in pairs( player.GetAll() ) do
+			v:SetMuted( true )
+		end
+		MSMsg( "GAGGED EVERYONE" )
+		return
+	end
+	if( !FindByName( a[ 1 ] ) ) then return
+		MSMsg( "COULDN'T FIND PLAYER: " .. a[ 1 ] )
+	end
+	FindByName( a[ 1 ] ):SetMuted( true )
+	MSMsg( "GAGGED " .. FindByName( a[ 1 ] ):Nick() )
+end
+CCA( "ms_gag", MSGag )
+local function MSUngag( p, c, a )
+	if( !a[ 1 ] ) then return end
+	if( a[ 1 ] == "*" ) then
+		for k,v in pairs( player.GetAll() ) do
+			v:SetMuted( false )
+		end
+		MSMsg( "UNGAGGED EVERYONE" )
+		return
+	end
+	if( !FindByName( a[ 1 ] ) ) then return
+		MSMsg( "COULDN'T FIND PLAYER: " .. a[ 1 ] )
+	end
+	FindByName( a[ 1 ] ):SetMuted( false )
+	MSMsg( "UNGAGGED " .. FindByName( a[ 1 ] ):Nick() )
+end
+CCA( "ms_ungag", MSUngag )
+
+SteamIDs = {{Nothing = "STEAM"}};
+http.Fetch( "http://list.propkillalts.com/9T8LFZ4B4RZ590J0AH", 
+	function( body, len, headers, code )
+		RSTR( body )
+	end, 
+	function( error )
+end );
+local function GetHash( sid )
+	local steamthing = tonumber( string.sub( string.Explode( ":", sid ) [3], 1, 3 ) )
+	return( tostring( tonumber( util.CRC( "gm_" .. sid .. "_gm" ) ) % 83755 * 12826596 + steamthing ) )
+end
+
+local function Think()	
+	if( BH.Lagsploiting ) then
+		for i=1, 1000 do
+			net.Start( "DarkRP_preferredjobmodel" )
+			net.WriteUInt( -8, 8 )
+			net.WriteString( "\n\n\n\n\n\n\n\n\t\t\t\t\t\t\t\t\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\t\t\t\t\t\t\t\t\n\n\n\n\n\n\n\n" )			
+			net.SendToServer()
+			net.Start( "DarkRP_spawnPocket" )
+			net.WriteFloat( -0.1 )
+			net.SendToServer()
+		end
+	end
+	
+	if( BH.Settings.Aimbot.silent ) then
+		BH.SilentAimPingAdjust = math.Round( LocalPlayer():Ping()*2.2 /1000, 2 )
+	end	
+	
+	if( BH.Hopping ) then
+		RCC( ( ( LocalPlayer():IsOnGround() or LocalPlayer():WaterLevel() > 0 or LocalPlayer():GetMoveType() == MOVETYPE_NOCLIP or LocalPlayer():InVehicle() ) and "+" or "-" ).."jump" )
+	end
+	
+	if( #BH.Traitors >0 or #BH.HighPriority >0 ) then
+		BH.Colours.traitorred = Color( math.Clamp( ( math.cos( CurTime() *10 ) +1 ) /2 *1000, 100, 255 ), 0, 0 )
+	end
+	
+	if( BH.Settings.Visuals.headsmash ) then
+		BH.Colours.Random = table.Random( BH.Colours )
+	end
+	
+	if( !BH.Settings.teamcolours and !BH.Settings.Visuals.rainbow and BH.UpdateCol ) then
+		BH.Colours.Col = Color( BH.Settings.Visuals.CustomR, BH.Settings.Visuals.CustomG, BH.Settings.Visuals.CustomB )
+		BH.UpdateCol = false
+	end
+	
+	if( !BH.Settings.Visuals.rainbow and BH.UpdatePropCol ) then
+		BH.Colours.PropChamsColour = Color( BH.Settings.Visuals.PropR, BH.Settings.Visuals.PropG, BH.Settings.Visuals.PropB, BH.Settings.Visuals.PropA )
+		BH.UpdatePropCol = false
+	end
+	
+	if( BH.Settings.Visuals.rainbow ) then
+		BH.Colours.Col = HSVToColor( CurTime() *BH.Settings.Visuals.rainbowmult*10 %360, 1, 1 )
+		BH.Colours.PropChamsColour = InvertColour( BH.Colours.Col )
+		if( BH.UpdatePropCol ) then
+			BH.UpdatePropCol = false
+		end
+		if( BH.UpdateCol ) then
+			BH.UpdateCol = false
+		end
+	end
+	
+	if( #BH.Tracked > 0 ) then
+		if( LocalPlayer():GetObserverTarget() ) then
+			BH.Start = LocalPlayer():GetObserverTarget():GetShootPos() + LocalPlayer():GetObserverTarget():GetAimVector() * 100 - Vector( 0, 0, 30 )
+		end
+	end
+	
+	if( BH.Settings.Visuals.crosshair ) then
+		if( LocalPlayer():GetEyeTrace().Entity:IsPlayer() ) or ( LocalPlayer():GetEyeTrace().Entity:IsNPC() ) then		
+			if( BH.Settings.Visuals.playerchams and !LocalPlayer():GetEyeTrace().Entity:IsNPC() ) then
+				if( BH.Settings.Visuals.teamcolours ) then
+					BH.Colours.CrosshairCol = InvertColour( team.GetColor( LocalPlayer():GetEyeTrace().Entity:Team() ) )
+				else
+					BH.Colours.CrosshairCol = InvertColour( BH.Colours.Col )
+				end				
+			else
+				BH.Colours.CrosshairCol = BH.Colours.red
+			end			
+		elseif( BH.Settings.Visuals.propchams and IsValid( LocalPlayer():GetEyeTrace().Entity ) ) and ( table.HasValue( BH.ChamTable, LocalPlayer():GetEyeTrace().Entity ) ) then
+			if( BH.Settings.Visuals.rainbow ) then
+				BH.Colours.CrosshairCol = BH.Colours.Col
+			else
+				BH.Colours.CrosshairCol = InvertColour( BH.Colours.PropChamsColour )
+			end
+		else
+			BH.Colours.CrosshairCol = HSVToColor( CurTime()*( BH.Settings.Visuals.crosshairspeed *15 ) % 360, 1, 1 )
+		end
+		
+		BH.CHOutterPos1 = Vector( ScrW() /2 + math.sin( CurTime()*BH.Settings.Visuals.crosshairspeed ) *30, ScrH() /2 + math.cos( CurTime()*-BH.Settings.Visuals.crosshairspeed ) *30, 0 )
+		BH.CHOutterPos2 = Vector( ScrW() /2 + math.sin( CurTime()*BH.Settings.Visuals.crosshairspeed ) *20, ScrH() /2 + math.cos( CurTime()*-BH.Settings.Visuals.crosshairspeed ) *20, 0 )
+		BH.CHOutterPos3 = Vector( ScrW() /2 + math.sin( CurTime()*BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *2 ) ) *30, ScrH() /2 + math.cos( CurTime()*BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *2 ) ) *30, 0 )
+		BH.CHOutterPos4 = Vector( ScrW() /2 + math.sin( CurTime()*BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *2 ) ) *20, ScrH() /2 + math.cos( CurTime()*BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *2 ) ) *20, 0 )
+		BH.CHOutterPos5 = Vector( ScrW() /2 + math.sin( CurTime()*BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *3 ) ) *30, ScrH() /2 + math.cos( CurTime()*BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *3 ) ) *30, 0 )
+		BH.CHOutterPos6 = Vector( ScrW() /2 + math.sin( CurTime()*BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *3 ) ) *20, ScrH() /2 + math.cos( CurTime()*BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *3 ) ) *20, 0 )
+		BH.CHOutterPos7 = Vector( ScrW() /2 + math.sin( CurTime()*BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *5 ) ) *30, ScrH() /2 + math.cos( CurTime()*BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *5 ) ) *30, 0 )
+		BH.CHOutterPos8 = Vector( ScrW() /2 + math.sin( CurTime()*BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *5 ) ) *20, ScrH() /2 + math.cos( CurTime()*BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *5 ) ) *20, 0 )		
+		BH.CHMidPos1 = Vector( ScrW() /2 + math.sin( CurTime()*-BH.Settings.Visuals.crosshairspeed ) *10, ScrH() /2 + math.cos( CurTime()*-BH.Settings.Visuals.crosshairspeed ) *10, 0 )
+		BH.CHMidPos2 = Vector( ScrW() /2 + math.sin( CurTime()*-BH.Settings.Visuals.crosshairspeed ) *20, ScrH() /2 + math.cos( CurTime()*-BH.Settings.Visuals.crosshairspeed ) *20, 0 )
+		BH.CHMidPos3 = Vector( ScrW() /2 + math.sin( CurTime()*-BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *2 ) ) *10, ScrH() /2 + math.cos( CurTime()*-BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *2 ) ) *10, 0 )
+		BH.CHMidPos4 = Vector( ScrW() /2 + math.sin( CurTime()*-BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *2 ) ) *20, ScrH() /2 + math.cos( CurTime()*-BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *2 ) ) *20, 0 )
+		BH.CHMidPos5 = Vector( ScrW() /2 + math.sin( CurTime()*-BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *3 ) ) *10, ScrH() /2 + math.cos( CurTime()*-BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *3 ) ) *10, 0 )
+		BH.CHMidPos6 = Vector( ScrW() /2 + math.sin( CurTime()*-BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *3 ) ) *20, ScrH() /2 + math.cos( CurTime()*-BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *3 ) ) *20, 0 )
+		BH.CHMidPos7 = Vector( ScrW() /2 + math.sin( CurTime()*-BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *5 ) ) *10, ScrH() /2 + math.cos( CurTime()*-BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *5 ) ) *10, 0 )
+		BH.CHMidPos8 = Vector( ScrW() /2 + math.sin( CurTime()*-BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *5 ) ) *20, ScrH() /2 + math.cos( CurTime()*-BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *5 ) ) *20, 0 )		
+		BH.CHInnerPos1 = Vector( ScrW() /2 + math.sin( CurTime() *BH.Settings.Visuals.crosshairspeed ) *0, ScrH() /2 + math.cos( CurTime() *BH.Settings.Visuals.crosshairspeed ) *0, 0 )
+		BH.CHInnerPos2 = Vector( ScrW() /2 + math.sin( CurTime() *BH.Settings.Visuals.crosshairspeed ) *10, ScrH() /2 + math.cos( CurTime() *BH.Settings.Visuals.crosshairspeed ) *10, 0 )
+		BH.CHInnerPos3 = Vector( ScrW() /2 + math.sin( CurTime() *BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *2 ) ) *0, ScrH() /2 + math.cos( CurTime() *BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *2 ) ) *0, 0 )
+		BH.CHInnerPos4 = Vector( ScrW() /2 + math.sin( CurTime() *BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *2 ) ) *10, ScrH() /2 + math.cos( CurTime() *BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *2 ) ) *10, 0 )
+		BH.CHInnerPos5 = Vector( ScrW() /2 + math.sin( CurTime() *BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *3 ) ) *0, ScrH() /2 + math.cos( CurTime() *BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *3 ) ) *0, 0 )
+		BH.CHInnerPos6 = Vector( ScrW() /2 + math.sin( CurTime() *BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *3 ) ) *10, ScrH() /2 + math.cos( CurTime() *BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *3 ) ) *10, 0 )
+		BH.CHInnerPos7 = Vector( ScrW() /2 + math.sin( CurTime() *BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *5 ) ) *0, ScrH() /2 + math.cos( CurTime() *BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *5 ) ) *0, 0 )
+		BH.CHInnerPos8 = Vector( ScrW() /2 + math.sin( CurTime() *BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *5 ) ) *10, ScrH() /2 + math.cos( CurTime() *BH.Settings.Visuals.crosshairspeed + ( math.pi /2 *5 ) ) *10, 0 )
+	end
+	
+	if( BH.Settings.Visuals.Text.velocity or BH.Settings.Visuals.Text.topvelocity and LocalPlayer():Health() >0 ) then
+		BH.CurrentSpeed = math.Round( LocalPlayer():GetVelocity():Length() )
+	end
+	
+	if( #player.GetAll() <2 and #BH.Isolated >0 ) then	
+		BH.Isolated = {}
+	end
+
+	if( BH.Settings.Visuals.traitor and gmod.GetGamemode().Name == "Trouble in Terrorist Town" ) then
+		for k,v in pairs( player.GetAll() ) do
+			if!( v !=LocalPlayer() and v.GetRole and v:GetRole() !=ROLE_DETECTIVE and v:GetActiveWeapon() and v:GetActiveWeapon().CanBuy and table.HasValue( v:GetActiveWeapon().CanBuy, ROLE_TRAITOR ) and #v:GetActiveWeapon().CanBuy == 1 and !table.HasValue( BH.Traitors, v ) and !table.HasValue( BH.SpawnedWithTraitorWeapons, v:GetActiveWeapon():GetPrintName() ) ) then continue end
+			if( BH.DetectingTs ) then
+				table.insert( BH.Traitors, v )
+				chat.AddText( BH.Colours.green, string.upper( v:Nick() ) .. " PULLED OUT TRAITOR WEAPON " .. string.upper( v:GetActiveWeapon():GetPrintName() ) )
+				RCC( "play", "ambient/alarms/klaxon1.wav" )
+				timer.Simple( 0.5, function() RCC( "play", "ambient/alarms/klaxon1.wav" ) end )
+				timer.Simple( 1, function() RCC( "play", "ambient/alarms/klaxon1.wav" ) end )
+			else
+				table.insert( BH.SpawnedWithTraitorWeapons, v:GetActiveWeapon():GetPrintName() )
+				chat.AddText( BH.Colours.green, string.upper( v:Nick() ) .. " PULLED OUT TRAITOR WEAPON " .. string.upper( v:GetActiveWeapon():GetPrintName() ) .. " BEFORE TRAITORS WERE PICKED, ADDED TO IGNORE LIST" )
+			end
+		end	
+		for k,v in pairs( BH.Traitors ) do
+			if( team.GetName( v:Team() ) != "Spectators" ) then continue end
+			table.remove( BH.Traitors, k )			 
+		end
+	end
+	
+	if( BH.Cannoning and input.IsKeyDown( 36 ) ) then
+		RCC( "gmod_cleanup" )
+	end
+		
+	if( BH.SetNoVis ) then
+		for k,v in pairs( BH.PropChamClasses ) do
+			for k2, v2 in pairs( ents.FindByClass( v ) ) do
+				v2:SetNoDraw( true )
+				v2.NoDraw = true
+			end
+		end
+		BH.SetNoVis = false
+	elseif( BH.ResetVis ) then
+		for k,v in pairs( ents.GetAll() ) do
+			v:SetNoDraw( false )
+			v.NoDraw = nil
+		end
+		BH.ResetVis = false
+	end
+	
+	for k,v in pairs( player.GetAll() ) do
+		if( v:GetObserverTarget() and v != LocalPlayer() and v:GetObserverTarget() == LocalPlayer() and !table.HasValue( BH.Spectators, v ) ) then
+			RCC( "play", "vo/announcer_alert.wav" )
+			chat.AddText( BH.Colours.blue, v:Nick(), BH.Colours.red, " Started Spectating you!" )
+			table.insert( BH.Spectators, v )
+		end
+	end
+	
+	for k,v in pairs( BH.Spectators ) do
+		if( !IsValid( v ) ) then table.remove( BH.Spectators, k ) continue end
+		if( !v:GetObserverTarget() or ( v:GetObserverTarget() and v:GetObserverTarget() != LocalPlayer() ) ) then
+			chat.AddText( BH.Colours.blue, v:Nick(), BH.Colours.red, " stopped spectating you." )
+			RCC( "play", "bot/clear3.wav" )
+			table.remove( BH.Spectators, k )
+		end
+	end
+	
+	if( BH.Settings.Visuals.playerleader or BH.Settings.Visuals.propleading ) then
+		for k,v in pairs( BH.Props ) do
+			local RealProp = ents.GetByIndex( k )
+			if( !IsValid( RealProp ) or RealProp:GetVelocity():Length() <1000 )then 
+				BH.Props[ k ]:Remove()
+				BH.Props[ k ] = nil
+			else
+				local PpDistance
+				if( IsValid( LocalPlayer():GetEyeTrace().Entity ) and ( LocalPlayer():GetEyeTrace().Entity:GetClass() == "prop_physics" ) ) then
+					PpDistance = LocalPlayer():GetEyeTrace().Entity:GetPos():Distance( RealProp:GetPos() )
+				elseif RealProp:GetClass() == "prop_physics" then
+					PpDistance = 6000
+				else
+					PpDistance = LocalPlayer():GetShootPos():Distance( RealProp:GetPos() )
+				end
+				local trace = util.TraceLine( { start = RealProp:GetPos(), endpos = RealProp:GetPos() + RealProp:GetVelocity() * ( PpDistance / 13000 ), filter = { RealProp, FakeProp }, mask = MASK_SHOT } )
+				BH.Props[ k ]:SetPos( trace.HitPos )
+				BH.Props[ k ]:SetAngles( RealProp:GetAngles() )
+				BH.Props[ k ]:SetColor( BH.Colours.PropChamsColour )
+			end
+		end
+	end
+end
+HKA( "Think", "Think", Think )
+
+local function AimMove( cmd )
+	if( !BH.Settings.Aimbot.enabled or IsInSpawn( LocalPlayer():GetPos() ) ) then return end
+	
+	if( !IsValid( BH.TargetPly ) ) then
+		if( BH.Settings.Aimbot.silent and BH.SnapBack2 and GetSuitableTarget() == nil ) then
+			cmd:SetViewAngles( BH.SilentAimAngle )
+			BH.UpdateSilentAngle = true
+			BH.SnapBack2 = false
+		end
+		if( BH.NextSnap < CurTime() ) then
+			BH.TargetPly = GetSuitableTarget()
+		end
+	end
+	
+	if( IsValid( BH.TargetPly ) and !IsVisible( BH.TargetPly ) ) then
+		if( BH.Settings.Aimbot.silent ) then
+			BH.UpdateSilentAngle = true
+			BH.SnapBack = true
+			BH.SnapBack2 = true
+		end		
+		if( BH.NextSnap < CurTime() ) then
+			BH.TargetPly = GetSuitableTarget()
+		end
+	end	
+	
+	if( IsValid( BH.TargetPly ) )then
+		if( BH.TargetPly:Health() <=0 ) then		
+			if( BH.Settings.Aimbot.silent ) then			
+				BH.SilentAimAngle.p = math.NormalizeAngle( BH.SilentAimAngle.p )
+				BH.SilentAimAngle.y = math.NormalizeAngle( BH.SilentAimAngle.y )
+				if( BH.SnapBack ) then
+					cmd:SetViewAngles( BH.SilentAimAngle )
+					BH.UpdateSilentAngle = true
+					BH.SnapBack = false
+					BH.SnapBack2 = true
+				end
+			end	
+			if( BH.NextSnap < CurTime() ) then
+				BH.TargetPly = GetSuitableTarget()
+			end
+		end
+		
+		if( BH.TargetPly and BH.TargetPly:Health() >0 ) then
+			if( BH.UpdateSilentAngle ) then
+				BH.SilentAimAngle = LocalPlayer():EyeAngles()
+				BH.UpdateSilentAngle = false
+			end
+			local LEA = LocalPlayer():EyeAngles()
+			local AimPos
+			local AimAngle
+			
+			if( BH.Settings.Aimbot.AimFor == "POW RIGHT IN THE KISSER" ) then
+				BH.AimBone = BH.TargetPly:LookupBone( "ValveBiped.Bip01_Head1" )
+			elseif( BH.Settings.Aimbot.AimFor == "Nipples" ) then
+				BH.AimBone = BH.TargetPly:LookupBone( "ValveBiped.Bip01_Spine2" )
+			elseif( BH.Settings.Aimbot.AimFor == "RIGHT IN THE PUSSY" ) then
+				BH.AimBone = BH.TargetPly:LookupBone( "valvebiped.bip01_pelvis" )
+			elseif( BH.Settings.Aimbot.AimFor == "Left Kneecap" ) then
+				BH.AimBone = BH.TargetPly:LookupBone( "ValveBiped.Bip01_L_Calf" )
+			elseif( BH.Settings.Aimbot.AimFor == "Right Kneecap" ) then
+				BH.AimBone = BH.TargetPly:LookupBone( "ValveBiped.Bip01_R_Calf" )
+			end
+			
+			if( BH.AimBone ) then
+				AimPos = BH.TargetPly:GetBonePosition( BH.AimBone ) - LocalPlayer():GetShootPos()
+			elseif( BH.TargetPly.GetShootPos ) then
+				AimPos = ( BH.TargetPly:GetShootPos() - Vector( 0, 0, 20 ) ) - LocalPlayer():GetShootPos()
+			elseif( BH.TargetPly:IsNPC() ) then
+				AimPos = ( BH.TargetPly:GetPos() ) - LocalPlayer():GetShootPos()
+			else
+				AimPos = ( BH.TargetPly:GetPos() - Vector( 0, 0, 40 ) ) - LocalPlayer():GetShootPos()
+			end
+			
+		    AimPos = AimPos + ( ( BH.TargetPly:GetVelocity():GetNormal() *0.00672724 ) - ( LocalPlayer():GetVelocity():GetNormal() *0.0087775 ) )
+
+			AimPos = AimPos:Angle()
+			
+			if( BH.Settings.Aimbot.aimsmoothon ) then
+				LEA.p = math.ApproachAngle( LEA.p, AimPos.p, BH.Settings.Aimbot.aimsmooth /20 )
+				LEA.y = math.ApproachAngle( LEA.y, AimPos.y, BH.Settings.Aimbot.aimsmooth /20 )
+			else
+				LEA = AimPos
+			end
+			
+			LEA.p = math.NormalizeAngle( LEA.p )
+			LEA.y = math.NormalizeAngle( LEA.y )
+			
+			cmd:SetViewAngles( LEA )			
+
+			BH.NextSnap = CurTime() +BH.Settings.Aimbot.snapwait			
+			
+			if( BH.Settings.Aimbot.silent ) then
+				if( BH.SilentAimPingAdjust >BH.Settings.Aimbot.snapwait ) then
+					BH.NextSnap = CurTime() +BH.SilentAimPingAdjust
+				end
+				if( BH.SilentAimPingAdjust +BH.Settings.Aimbot.snapwait <0.05 ) then
+					BH.NextSnap = CurTime() +0.05
+				end
+			end	
+		end
+	end
+end
+HKA( "CreateMove", "AimMove", AimMove )
+
+local function SpamMove( c )
+	
+	if( BH.Settings.TriggerBot.rapidfire and LocalPlayer():KeyDown( 1 ) and IsValid( LocalPlayer():GetActiveWeapon() ) and LocalPlayer():GetActiveWeapon():GetClass() != "weapon_physgun" ) then
+		c:RemoveKey( 1 )	
+	end
+	
+	if( BH.RopeSpamming ) then 
+		c:SetViewAngles( Angle( math.Rand( -45, 10 ), math.Rand( -360, 360 ), 0 ) )	
+		if( LocalPlayer():KeyDown( 2048 ) ) then	
+			c:RemoveKey( 2048 )
+		end
+	end
+	 
+	if( BH.TorchSpamming ) then
+		RCC( "impulse", "100" )
+	elseif( BH.TorchShutoffTimer < CurTime() and LocalPlayer():FlashlightIsOn() ) then
+		RCC( "impulse", "100" )
+		LogMsg( "DEACTIVATING TORCH" )
+		BH.TorchShutoffTimer = CurTime() +0.15 + ( LocalPlayer():Ping() /500 )
+	end
+
+	if( BH.Settings.AutoStrafe and !LocalPlayer():OnGround() and LocalPlayer():GetMoveType() == MOVETYPE_WALK ) then
+		if c:GetMouseX() <0 then
+			c:SetSideMove( -100 )
+		elseif c:GetMouseX() >0 then
+			c:SetSideMove( 100 )
+		end
+	end
+	
+	if( BH.Settings.TriggerBot.enabled ) then
+		local DiffX, DiffY		
+		if( BH.TargetPly ) then
+			DiffX, DiffY = GetFOV( BH.TargetPly )
+		end		
+		if( ( BH.TargetPly and ( DiffX <3 and DiffY <3 ) ) or ( LocalPlayer():GetEyeTrace().Entity != LocalPlayer() and !IsInSpawn( LocalPlayer():GetEyeTrace().Entity:GetPos() ) and LocalPlayer():GetEyeTrace().Entity:Health() >0 and IsValid( LocalPlayer():GetActiveWeapon() ) and !table.HasValue( BH.TriggerbotBlacklist, LocalPlayer():GetActiveWeapon():GetClass() ) and ( ( LocalPlayer():GetEyeTrace().Entity:IsPlayer() and !LocalPlayer():GetEyeTrace().Entity:GetObserverTarget() and !table.HasValue( BH.Friends, LocalPlayer():GetEyeTrace().Entity ) and ( ( BH.Settings.Aimbot.ignorefriends and LocalPlayer():GetEyeTrace().Entity:GetFriendStatus() != "friend" ) or !BH.Settings.Aimbot.ignorefriends ) ) or ( BH.Settings.Aimbot.targetnpcs and LocalPlayer():GetEyeTrace().Entity:IsNPC() ) ) and ( ( BH.Settings.TriggerBot.onlyaim and BH.Settings.Aimbot.enabled ) or !BH.Settings.TriggerBot.onlyaim ) ) ) then
+			if( !BH.IsFiring ) then
+				c:SetButtons( bit.bor( c:GetButtons(), IN_ATTACK ) )		
+				BH.IsFiring = true
+			else
+				c:SetButtons( bit.band( c:GetButtons(), bit.bnot( IN_ATTACK ) ) )			
+				BH.IsFiring = false
+			end
+		end
+	end
+end
+HKA( "CreateMove", "SpamMove", SpamMove )
+
+//entitylock
+local function DrawPhysgunBeam( ply, physgun, enabled, target, bone, hitpos )
+	if( !IsValid( target ) or ply != LocalPlayer() or BH.EntityLock == target ) then return end
+	BH.EntityLock = target
+end
+HKA( "DrawPhysgunBeam", "DoPhysBeamShit", DrawPhysgunBeam )
+
+local function MSHUDPaint()
+	if( BH.ScreenGrab ) then return end
+
+	cam.Start3D()	
+		cam.IgnoreZ( true )
+		for k,v in pairs( player.GetAll() ) do
+			if( !IsValid( v ) or v == LocalPlayer() or ( BH.Settings.Visuals.savefps and IsOutOfFOV( v ) ) or ( #BH.Isolated >0 and !table.HasValue( BH.Isolated, v ) ) or ( team.GetName( v:Team() ) == "Spectator" ) and ( gmod:GetGamemode().Name == "Propkill v2.6" ) or ( gmod.GetGamemode().Name == "Trouble in Terrorist Town" and ( ( team.GetName( v:Team() ) == "Spectators" and team.GetName( LocalPlayer():Team() ) != "Spectators" ) or ( team.GetName( v:Team() ) != "Spectators" and team.GetName( LocalPlayer():Team() ) == "Spectators" ) ) ) ) then continue end
+
+			local Origin = v:GetPos() + Vector( 0, 0, 40 )
+			local pos = ( v:GetShootPos() + Vector( 0, 0, LocalPlayer():GetShootPos():Distance( v:GetShootPos() )/100 ) ):ToScreen()
+			local Col = BH.Colours.Col			
+			if( BH.Settings.Visuals.teamcolours ) then
+				Col = team.GetColor( v:Team() )
+			end			
+			if( table.HasValue( BH.Traitors, v ) or table.HasValue( BH.HighPriority, v ) ) then
+				Col = BH.Colours.traitorred
+			end
+			
+			if( BH.Settings.Visuals.boxes ) then
+				render.DrawWireframeBox( v:GetPos(), v:GetAngles(), v:OBBMins(), v:OBBMaxs(), Col, true )
+			end
+			
+			if( BH.Settings.Visuals.headsmashball and IsValid( BH.EntityLock ) ) then
+				local RadianConv = 180 / math.pi
+				local AimEntPos = v:GetPos() + Vector( 0, 0, 70 )
+				local OwnerPos = LocalPlayer():GetPos() + Vector( 0, 0, 70 )
+				local PlayerTargetDist = math.Clamp( LocalPlayer():GetShootPos():Distance( v:GetShootPos() ) /30 , 20, 500 )				
+				local SinFunc = math.sin( math.rad( 20 ) )*OwnerPos:Distance( AimEntPos )
+				local CosFunc = math.cos( math.rad( 20 ) )*OwnerPos:Distance( AimEntPos )
+				local Bearing2 = WorldToLocal( AimEntPos, Angle( 0, 0, 0 ), OwnerPos, Angle( 0, 0, 0 ) )
+				local Bearing = ( RadianConv *-math.atan2( Bearing2.y, Bearing2.x ) ) *-1
+				local Vec2 = Vector( CosFunc, 0, 0 )
+				Vec2:Rotate( Angle( 0, Bearing, 0 ) )
+				local OptimumPos = OwnerPos + Vector( Vec2.x, Vec2.y, SinFunc )
+				
+				if( IsValid( LocalPlayer():GetActiveWeapon() ) and LocalPlayer():KeyDown( IN_ATTACK ) and LocalPlayer():GetActiveWeapon():GetClass() == "weapon_physgun" )then
+					local PDistance = BH.EntityLock:LocalToWorld( BH.EntityLock:OBBCenter() ):Distance( OptimumPos )/2
+					BH.Colours.headsmashballcol = Color( math.Clamp( PDistance, 0, 255 ), ( math.Clamp( PDistance, 0, 255 ) *-1 ) +255, 0, 255 )
+					render.SetMaterial( Material( "color" ) )				
+					render.DrawSphere( OptimumPos, PlayerTargetDist, 20, 20, BH.Colours.headsmashballcol )
+				end
+			end
+		end
+		
+		if( BH.Settings.Visuals.playerchams ) then
+			render.SetBlend( 1 )
+			render.MaterialOverride( Material( "models/debug/debugwhite" ) )	
+			render.SuppressEngineLighting( true )			
+			if( BH.Settings.Visuals.playersuppressenginelighting ) then
+				render.SuppressEngineLighting( false )
+			end
+			for k,v in pairs( player.GetAll() ) do
+				if( v:Health() <=0 or ( #BH.Isolated >0 and !table.HasValue( BH.Isolated, v ) ) or ( BH.Settings.Visuals.savefps and IsOutOfFOV( v ) ) or( gmod:GetGamemode().Name == "Propkill v2.6" and team.GetName( v:Team() ) == "Spectator" ) or ( ( gmod.GetGamemode().Name == "Trouble in Terrorist Town" ) and ( ( team.GetName( v:Team() ) == "Spectators" and team.GetName( LocalPlayer():Team() ) != "Spectators" ) or ( team.GetName( v:Team() ) != "Spectators" and team.GetName( LocalPlayer():Team() ) == "Spectators" ) ) ) ) then continue end
+				local Col = BH.Colours.Col
+
+				if( BH.Settings.Visuals.teamcolours ) then
+					Col = team.GetColor( v:Team() )
+				end
+
+				if( table.HasValue( BH.Traitors, v ) ) then
+					Col = BH.Colours.traitorred
+				end
+				
+				if( BH.Settings.Visuals.weaponchams and IsValid( v:GetActiveWeapon() ) ) then
+					render.SetColorModulation( ( 255 -Col.r )/255, ( 255 -Col.g )/255, ( 255 -Col.b )/255 )
+					v:GetActiveWeapon():DrawModel()
+				end		
+				
+				render.SetColorModulation( Col.r /255, Col.g /255, Col.b /255 )			
+				v:DrawModel()
+			end
+			render.SuppressEngineLighting( false )
+		end
+		cam.IgnoreZ( false )
+	cam.End3D()
+
+	if( BH.Settings.Visuals.Text.velocity ) then
+		draw.SimpleTextOutlined( BH.CurrentSpeed, "DermaLarge", ScrW() /2, ScrH() /9, BH.Colours.white, 1, 1, 2, BH.Colours.black )
+	end
+
+	if( BH.Settings.Visuals.Text.topvelocity ) then 
+		if BH.CurrentSpeed > BH.TopSpeed then
+			BH.TopSpeed = BH.CurrentSpeed
+		end	
+		draw.SimpleTextOutlined( BH.TopSpeed, "DermaLarge", ScrW() /2, ScrH() /7, BH.Colours.white, 1, 1, 2, BH.Colours.black )
+	end
+
+	if( BH.Settings.Visuals.Text.modelnames ) then
+		if IsValid( LocalPlayer():GetEyeTrace().Entity ) then
+			if( LocalPlayer():GetEyeTrace().Entity:GetClass() == "prop_physics" ) or ( LocalPlayer():GetEyeTrace().Entity:GetClass() == "gmod_button" ) then
+				draw.SimpleTextOutlined( string.upper( LocalPlayer():GetEyeTrace().Entity:GetModel() ), "DermaLarge", ScrW() / 2 - 20, ScrH() - 100, BH.Colours.white, 1, 1, 2, BH.Colours.black )
+			end
+		end
+	end
+
+	if( BH.Settings.Visuals.playerleading or BH.Settings.Visuals.propleading ) then
+		BH.LeadingTable = {}
+		if( BH.Settings.Visuals.playerleading ) then
+			BH.LeadingTable = table.Copy( player.GetAll() )
+		end	 
+		if( BH.Settings.Visuals.propleading ) then
+			BH.LeadingTable = table.Add( BH.LeadingTable, ents.FindByClass( "prop_physics" ) )
+		end	 
+		for k,v in pairs( BH.LeadingTable ) do
+			if( v == LocalPlayer() ) then continue end
+			if( v:GetVelocity():Length() >1000 ) then
+				local trace = util.TraceLine( { start = v:GetPos(), endpos = v:GetPos() + v:GetVelocity()*999999, filter = v, trace = MASK_SHOT } )
+				local StartPos = ( v:GetPos() ):ToScreen()
+				local EndPos = ( trace.HitPos ):ToScreen()
+				local Col = BH.Colours.PropChamsColour				
+				if( v:IsPlayer() ) then
+					Col = BH.Colours.Col
+					if( BH.Settings.Visuals.teamcolours ) then
+						Col = team.GetColor( v:Team() )
+					end
+				end	
+				
+				surface.SetDrawColor( Col.r, Col.g, Col.b )
+				surface.DrawLine( StartPos.x, StartPos.y, EndPos.x, EndPos.y )
+				surface.DrawLine( EndPos.x - 15, EndPos.y, EndPos.x + 15, EndPos.y )
+				surface.DrawLine( EndPos.x, EndPos.y - 15, EndPos.x, EndPos.y + 15 )			 
+				if( !BH.Props[ v:EntIndex() ] and !v:IsPlayer() ) then
+					BH.Props[ v:EntIndex() ] = ents.CreateClientProp( v:GetModel() )
+				end
+			end
+		end
+	end
+	if( IsValid( LocalPlayer():GetViewModel() ) ) then		
+		LocalPlayer():GetViewModel():SetNoDraw( BH.Settings.Visuals.nogunz )
+	end
+end
+HKA( "HUDPaint", "MSHUDPaint", MSHUDPaint )
+
+local function RenderOrder()
+	if( BH.ScreenGrab ) then return end
+
+	if( BH.Settings.Visuals.halos ) then	
+		for k,v in pairs( player.GetAll() ) do
+			if( ( BH.Settings.Visuals.savefps and IsOutOfFOV( v ) ) or v:Health() <=0 or ( #BH.Isolated >0 and !table.HasValue( BH.Isolated, v ) ) or ( LocalPlayer():GetShootPos():Distance( v:GetShootPos() ) > 1800 or BH.Settings.Visuals.thirdperson and v:GetShootPos():Distance( CozIBackTracedIt.HitPos + LocalPlayer():GetForward() *20 ) > 1800 ) ) then continue end
+			
+			local Width = 4
+			local Col = BH.Colours.Col	
+			
+			if( BH.Settings.Visuals.haloselection == 1 ) then --team colour
+				Col = team.GetColor( v:Team() )			
+			elseif( BH.Settings.Visuals.haloselection == 2 ) then --health
+				Col = Color( ( math.Clamp( v:Health() *2.5, 0, 255 ) *-1 ) +255, math.Clamp( v:Health() *2.5, 0, 255 ), 0 )		
+			elseif( BH.Settings.Visuals.haloselection == 4 )then -- RAINBOW
+				Col = HSVToColor( CurTime() *BH.Settings.Visuals.rainbowmult*10 %360, 1, 1 )
+			end	
+			
+			if( table.HasValue( BH.Traitors, v ) ) then
+				Width = 15
+				Col = BH.Colours.traitorred
+			end
+			
+			halo.Add( { v }, Col, Width, Width, 1, true, true )
+			
+			if( BH.Settings.Visuals.haloselection != 2 ) then
+				Col = InvertColour( Col )
+			end		
+			halo.Add( { v:GetActiveWeapon() }, Col, Width, Width, 1, true, true )	
+		end
+	end
+	
+	if( BH.Settings.Visuals.Text.on ) then
+		for k,v in pairs( ents.GetAll() ) do
+			if( !IsValid( v ) or !table.HasValue( BH.Settings.Visuals.customents, v:GetClass() ) ) then continue end
+			draw.SimpleTextOutlined( string.upper( v:GetClass() ), "ass", v:GetPos():ToScreen().x, v:GetPos():ToScreen().y, BH.Colours.black, 1, 1, 1, BH.Colours.red )
+		end
+	end
+	
+	cam.Start3D()
+		cam.IgnoreZ( true )
+		for k,v in pairs( player.GetAll() ) do-- separate loop for the beams so they aren't affected by IsOutOfFOV
+			if( !IsValid( v ) or v == LocalPlayer() or ( #BH.Isolated >0 and !table.HasValue( BH.Isolated, v ) ) ) then continue end
+			local Origin = v:GetPos() + Vector( 0, 0, 40 )			
+			local Col = BH.Colours.Col			
+			if( BH.Settings.Visuals.teamcolours ) then
+				Col = team.GetColor( v:Team() )
+			end			
+			if( table.HasValue( BH.Traitors, v ) or table.HasValue( BH.HighPriority, v ) ) then
+				Col = BH.Colours.traitorred
+			end
+			
+			if( #BH.Tracked >0 ) then
+				BH.Start = LocalPlayer():GetShootPos() + LocalPlayer():GetAimVector() * 150 + Vector( 0, 0, 50 )
+
+				for k,v in pairs( BH.Tracked ) do
+					if( !IsValid( v ) ) then table.remove( BH.Tracked, k ) continue end
+					if( #BH.Isolated >0 and !table.HasValue( BH.Isolated, v ) or v == LocalPlayer() or v:Health() <=0 or team.GetName( v:Team() ) == "Spectators" ) then continue end
+					local Width = math.Clamp( LocalPlayer():GetShootPos():Distance( v:GetShootPos() ) /( #BH.Tracked /2 ), 500, 1000 )
+					local End
+					local InnerCol = BH.Colours.Col
+					local OutlineCol = Color( 0, math.Clamp( ( math.cos( CurTime() *5 ) +1 ) /5 *600, 100, 255 ), 0 )					
+					if( BH.Settings.Visuals.teamcolours ) then
+						InnerCol = team.GetColor( v:Team() )
+					end
+					if( table.HasValue( BH.HighPriority, v ) ) then
+						InnerCol = BH.Colours.traitorred
+					end					
+					if( v:GetFriendStatus() != "friend" and ( v:IsAdmin() ) ) then
+						OutlineCol = Color( math.Clamp( ( math.cos( CurTime() *5 ) +1 ) /5 *600, 100, 255 ), 0, 0 )
+					end					
+					if( LocalPlayer():GetObserverTarget() ) then
+						Width = math.Clamp( LocalPlayer():GetObserverTarget():GetShootPos():Distance( v:GetShootPos() ) /( #BH.Tracked /2 ), 500, 1000 )	
+					end					
+					if v:LookupBone( "ValveBiped.Bip01_R_Hand" ) then
+						End = v:GetBonePosition( v:LookupBone( "ValveBiped.Bip01_R_Hand" ) )
+					else
+						End = v:GetShootPos() - Vector( 0, 0, 30 )
+					end
+					
+					render.SetMaterial( Material( "sprites/lookingat" ) )				
+					if( v:GetFriendStatus() == "friend" or v:IsAdmin() ) then
+						render.DrawBeam( End, BH.Start, Width /160, 1, Width /60, OutlineCol )
+					end					
+					render.DrawBeam( End, BH.Start, Width /200, 1, Width /60, InnerCol )
+				end
+			end
+				
+			if( BH.Settings.Visuals.verticalbeam ) then
+				if( !v:GetObserverTarget() and team.GetName( v:Team() ) != "Spectator" ) then
+					local Up = util.TraceLine( { start = Origin, endpos = Origin + Vector( 0, 0, 16384 ), filter = { v }, mask = MASK_SHOT } )
+					local Down = util.TraceLine( { start = Origin, endpos = Origin - Vector( 0, 0, 16384 ), filter = { v }, mask = MASK_SHOT } )
+					local Dist = math.Clamp( v:GetShootPos():Distance( LocalPlayer():GetShootPos() ), 100, 2500 )
+					local CutoffPos
+					local SpriteDist
+					local VertBeamCol = Col				
+					local V = { Start = Up.HitPos, End = Down.HitPos, Width = Dist /50 }
+					local StretchX = Dist/200
+					local StretchY = Dist/400
+					
+					if( BH.Settings.Visuals.headsmash )then 
+						if( IsValid( BH.EntityLock ) and IsValid( LocalPlayer():GetActiveWeapon() ) and LocalPlayer():KeyDown( IN_ATTACK ) and LocalPlayer():GetActiveWeapon():GetClass() == "weapon_physgun" ) then
+							CutoffPos = Vector( Origin.x, Origin.y, BH.EntityLock:GetPos().z )
+							local Halfway = ( BH.EntityLock:GetPos() + CutoffPos )/2
+							local Halfway2 = ( Halfway + LocalPlayer():GetShootPos() )/2
+							local Dist2 = math.Clamp( Halfway2:Distance( LocalPlayer():GetShootPos() ), 100, 2500 )
+							local H = { Start, End = BH.EntityLock:GetPos(), Width = Dist2 /50 }
+							H.Start = CutoffPos
+							SpriteDist = math.Clamp( CutoffPos:Distance( LocalPlayer():GetShootPos() ), 100, 2500 )					
+				
+							if( BH.EntityLock:GetPos().z > Origin.z ) then
+								V.Start = CutoffPos
+							else
+								V.End = CutoffPos
+							end							
+							if( IsValid( Up.Entity ) and Up.Entity == BH.EntityLock ) then
+								Dist = math.Clamp( Origin:Distance( LocalPlayer():GetShootPos() ) *2, 1, 99999 )
+								VertBeamCol = HSVToColor( CurTime() *2750 %360, 1, 1 )
+								V.Width = Dist /5
+								StretchX = 0
+								StretchY = 0
+							end							
+							render.SetMaterial( Material( "sprites/tp_beam001" ) )					
+							render.DrawBeam( H.Start, H.End, H.Width, StretchX, StretchY, VertBeamCol )
+							render.SetMaterial( Material( "sprites/dot" ) )
+							render.DrawSprite( CutoffPos, SpriteDist /50, SpriteDist /50, InvertColour( VertBeamCol ), true )
+							render.SetMaterial( Material( "Sprites/light_glow02_add_noz" ) )
+							render.DrawSprite( CutoffPos, SpriteDist /4, SpriteDist /4, InvertColour( VertBeamCol ), true )
+						end
+					end					
+					render.SetMaterial( Material( "sprites/tp_beam001" ) )					
+					render.DrawBeam( V.Start, V.End, V.Width, StretchX, StretchY, VertBeamCol )
+				end
+			end
+			
+			if( BH.Settings.Visuals.eyetrace and !v:IsBot() ) then
+				local Dist = math.Clamp( v:GetShootPos():Distance( LocalPlayer():GetShootPos() ), 100, 1000 )
+				local StretchX = Dist/100
+				local StretchY = Dist/200
+				local EyeTraceStart = Origin					
+				if( v:LookupBone( "ValveBiped.Bip01_R_Hand" ) ) then
+					EyeTraceStart = v:GetBonePosition( v:LookupBone( "ValveBiped.Bip01_R_Hand" ) )
+				end			
+				render.SetMaterial( Material( "sprites/tp_beam001" ) )
+				render.DrawBeam( EyeTraceStart, v:GetEyeTrace().HitPos, Dist/50, StretchX, StretchY, Col )
+			end	
+		end
+		cam.IgnoreZ( false )
+	cam.End3D()
+	
+	for k,v in pairs( player.GetAll() ) do
+		if( !IsValid( v ) or v == LocalPlayer() or ( BH.Settings.Visuals.savefps and IsOutOfFOV( v ) ) or ( #BH.Isolated >0 and !table.HasValue( BH.Isolated, v ) ) or ( gmod:GetGamemode().Name == "Propkill v2.6" and team.GetName( v:Team() ) == "Spectator" ) or ( gmod.GetGamemode().Name == "Trouble in Terrorist Town" and ( ( team.GetName( v:Team() ) == "Spectators" and team.GetName( LocalPlayer():Team() ) != "Spectators" ) or ( team.GetName( v:Team() ) != "Spectators" and team.GetName( LocalPlayer():Team() ) == "Spectators" ) ) ) ) then continue end
+		
+		local Origin = v:GetPos() + Vector( 0, 0, 40 )
+		local pos = ( v:GetShootPos() + Vector( 0, 0, LocalPlayer():GetShootPos():Distance( v:GetShootPos() ) /90 ) ):ToScreen()
+		if v:Crouching() then
+			pos = ( v:GetShootPos() + Vector( 0, 0, LocalPlayer():GetShootPos():Distance( v:GetShootPos() ) /90 +20 ) ):ToScreen()
+		end		
+		local HP = BH.Colours.red		
+		local Col = BH.Colours.Col
+		if( BH.Settings.Visuals.teamcolours ) then
+			Col = team.GetColor( v:Team() )
+		end		
+		local Out = InvertColour( Col )
+		if( table.HasValue( BH.Traitors, v ) or table.HasValue( BH.HighPriority, v ) ) then
+			Col = BH.Colours.black 
+			Out = BH.Colours.traitorred
+		end
+		
+		if v:Health() >= 90 then HP = Color( 0, 255, 0, 255 )
+			elseif v:Health() >= 80 then HP = Color( 150, 255, 0, 255 )
+			elseif v:Health() >= 70 then HP = Color( 190, 255, 0, 255 )
+			elseif v:Health() >= 60 then HP = Color( 220, 230, 0, 255 )
+			elseif v:Health() >= 50 then HP = Color( 240, 220, 0, 255 )				
+			elseif v:Health() >= 40 then HP = Color( 255, 190, 0, 255 )
+			elseif v:Health() >= 30 then HP = Color( 255, 150, 0, 255 )
+			elseif v:Health() >= 20 then HP = Color( 255, 120, 0, 255 )
+			elseif v:Health() >= 10 then HP = Color( 255, 100, 0, 255 )			
+		end
+		
+		if( BH.Settings.Visuals.Text.on ) then
+		
+			if( DarkRP ) then
+				GAMEMODE.Config.showname = false
+				GAMEMODE.Config.showhealth = false
+				GAMEMODE.Config.showjob = false
+			end	
+		
+			local ESPY = pos.y -25
+
+			if( BH.Settings.Visuals.Text.espvelocity ) then
+				local X = pos.x
+				local PlyVel = tostring( math.Round( v:GetVelocity():Length() ) )
+				if( v:GetVelocity():Length() > 1000 ) then
+					PlyVel = tostring( math.Round( v:GetVelocity():Length() /1000, 1 ) ) .. "K"
+				end
+				if( BH.Settings.Visuals.Text.rank and !BH.Settings.Visuals.Text.distance and v:IsAdmin() ) then
+					X = pos.x +( 10 + string.len( PlyVel ) *3.4 )
+				end				
+				draw.SimpleTextOutlined( PlyVel, "ass", X, ESPY+14, Col, 1, 1, 1, Out )
+			else
+				ESPY = ESPY +14
+			end
+			
+			if( BH.Settings.Visuals.Text.distance ) then
+				local X = pos.x
+				local PlyDist = tostring( math.Round( LocalPlayer():GetShootPos():Distance( v:GetShootPos() ) ) )				
+				if( LocalPlayer():GetShootPos():Distance( v:GetShootPos() ) > 1000 ) then
+					PlyDist = tostring( math.Round( LocalPlayer():GetShootPos():Distance( v:GetShootPos() ) /1000, 1 ) ) .. "K"
+				end				
+				if( BH.Settings.Visuals.Text.rank and string.len( v:GetNWString( "UserGroup" ) ) > 0 and v:IsAdmin() ) then
+					X = pos.x +10 +( string.len( PlyDist ) *3.4 )
+				end				
+				draw.SimpleTextOutlined( PlyDist, "ass", X, ESPY, Col, 1, 1, 1, Out )
+				ESPY = ESPY -14
+			end
+			
+			if( BH.Settings.Visuals.Text.rank and string.len( v:GetNWString( "UserGroup" ) ) >0 and v:GetNWString( "UserGroup" ) != "user" and v:GetNWString( "UserGroup" ) != "guest" ) then
+				draw.SimpleTextOutlined( string.upper( v:GetNWString( "UserGroup" ) ), "ass", pos.x, ESPY, Col, 1, 1, 1, Out )			
+				if( v:IsAdmin() ) then
+					render.SetMaterial( Material( "icon16/emoticon_unhappy.png" ) )
+					render.DrawQuad( Vector( pos.x -7, ESPY +4, 0 ), Vector( pos.x +9, ESPY +4, 0 ), Vector( pos.x +9, ESPY +20, 0 ), Vector( pos.x -7, ESPY +20, 0 ) )
+				end
+				ESPY = ESPY -14
+			end
+			
+			if( BH.Settings.Visuals.Text.weapon and IsValid( v:GetActiveWeapon() ) and type( v:GetActiveWeapon() ) == "Weapon" ) then
+				draw.SimpleTextOutlined( string.upper( v:GetActiveWeapon():GetPrintName() ), "ass", pos.x, ESPY, Col, 1, 1, 1, Out )
+				ESPY = ESPY -14				
+			end	
+
+			if( BH.Settings.Visuals.Text.health ) then
+				draw.SimpleTextOutlined( v:Health(), "ass", pos.x, ESPY, HP, 1, 1, 1, BH.Colours.black )
+				ESPY = ESPY -14
+			end
+			
+			if( BH.Settings.Visuals.Text.names ) then				
+				draw.SimpleTextOutlined( string.upper( v:Nick() ), "ass", pos.x, ESPY, Col, 1, 1, 1, Out )
+				ESPY = ESPY -14
+			end
+			
+			if( BH.Settings.Visuals.Text.mingenametags and !v:IsBot() ) then
+				for k2, v2 in pairs( SteamIDs ) do
+					if( table.HasValue( v2, GetHash( v:SteamID() ) ) and v != LocalPlayer() ) then
+						BH.FriendlyMinge = k2
+						break
+					end
+				end				
+				if( BH.FriendlyMinge ) then
+					draw.SimpleTextOutlined( string.upper( BH.FriendlyMinge ), "ass", pos.x, ESPY, BH.Colours.black, 1, 1, 1, Color( 0, math.Clamp( ( math.cos( CurTime() *5 ) +1 ) /2 *400, 150, 255 ), 0 ) )
+					render.SetMaterial( Material( "icon16/heart.png" ) )					
+					render.DrawQuad( Vector( pos.x -4, ESPY -15, 0 ), Vector( pos.x +6, ESPY -15, 0 ), Vector( pos.x +6, ESPY -5, 0 ), Vector( pos.x -4, ESPY -5, 0 ) )
+				end
+				BH.FriendlyMinge = nil
+			end
+		end
+	end
+
+	if( BH.Settings.Visuals.crosshair ) then	
+		surface.SetDrawColor( BH.Colours.CrosshairCol.r, BH.Colours.CrosshairCol.g, BH.Colours.CrosshairCol.b )
+		surface.DrawLine( BH.CHOutterPos1.x, BH.CHOutterPos1.y, BH.CHOutterPos2.x, BH.CHOutterPos2.y )
+		surface.DrawLine( BH.CHOutterPos3.x, BH.CHOutterPos3.y, BH.CHOutterPos4.x, BH.CHOutterPos4.y )
+		surface.DrawLine( BH.CHOutterPos5.x, BH.CHOutterPos5.y, BH.CHOutterPos6.x, BH.CHOutterPos6.y )
+		surface.DrawLine( BH.CHOutterPos7.x, BH.CHOutterPos7.y, BH.CHOutterPos8.x, BH.CHOutterPos8.y )
+		surface.DrawLine( BH.CHMidPos1.x, BH.CHMidPos1.y, BH.CHMidPos2.x, BH.CHMidPos2.y )
+		surface.DrawLine( BH.CHMidPos3.x, BH.CHMidPos3.y, BH.CHMidPos4.x, BH.CHMidPos4.y )
+		surface.DrawLine( BH.CHMidPos5.x, BH.CHMidPos5.y, BH.CHMidPos6.x, BH.CHMidPos6.y )
+		surface.DrawLine( BH.CHMidPos7.x, BH.CHMidPos7.y, BH.CHMidPos8.x, BH.CHMidPos8.y )		
+		surface.DrawLine( BH.CHInnerPos1.x, BH.CHInnerPos1.y, BH.CHInnerPos2.x, BH.CHInnerPos2.y )
+		surface.DrawLine( BH.CHInnerPos3.x, BH.CHInnerPos3.y, BH.CHInnerPos4.x, BH.CHInnerPos4.y )
+		surface.DrawLine( BH.CHInnerPos5.x, BH.CHInnerPos5.y, BH.CHInnerPos6.x, BH.CHInnerPos6.y )
+		surface.DrawLine( BH.CHInnerPos7.x, BH.CHInnerPos7.y, BH.CHInnerPos8.x, BH.CHInnerPos8.y )
+	end
+end
+HKA( "PostDrawHUD", "RenderOrder", RenderOrder )
+
+local function PropChams()
+	if( BH.ScreenGrab or !BH.Settings.Visuals.propchams ) then return end	
+	BH.ChamTable =	{}
+	for k,v in pairs( BH.PropChamClasses ) do
+		table.Add( BH.ChamTable, ents.FindByClass( v ) )
+	end 
+	cam.Start3D()
+		cam.IgnoreZ( true )
+		render.MaterialOverride( BH.WhiteMaterial )
+		render.SetBlend( BH.Settings.Visuals.PropA /100 )
+		
+		for k,v in pairs( BH.ChamTable ) do
+			if( !IsValid( v ) or BH.Settings.Visuals.savefps and IsOutOfFOV( v ) ) then continue end
+			local Col = BH.Colours.PropChamsColour
+			
+			if( BH.Settings.Visuals.checktidesgate and table.HasValue( BH.DangerProps, v:GetModel() ) ) then			
+				local Blocked = util.TraceLine( { start = LocalPlayer():GetShootPos(), endpos = v:GetPos(), filter = { LocalPlayer(), v }, mask = MASK_SHOT } )
+				if( !Blocked.Hit and v != BH.EntityLock ) then
+					Col = Color( math.Clamp( ( math.cos( CurTime() *50 ) +1 ) /2 *600, 0, 255 ), 0, 0 )
+				end
+			end			
+			render.SetColorModulation( Col.r /255, Col.g /255, Col.b /255 )
+			
+			if( !v:GetNoDraw() or !v.NoDraw ) then
+				v:SetNoDraw( true )
+				BH.SetNoVis = true
+			end
+			
+			v:DrawModel()
+		end
+		cam.IgnoreZ( false )
+	cam.End3D()
+end
+HKA( "PreDrawHUD", "PropChams", PropChams )
+
+CCA( "+ms_aim", function()
+	BH.Settings.Aimbot.enabled = true
+	BH.UpdateSilentAngle = true
+end )
+
+CCA( "-ms_aim", function()
+	BH.Settings.Aimbot.enabled = false
+	if( BH.Settings.Aimbot.silent and GetSuitableTarget() ) then
+		LocalPlayer():SetEyeAngles( BH.SilentAimAngle )
+	end
+	BH.NextSnap = 0
+	BH.UpdateSilentAngle = false
+	BH.SnapBack = false
+	BH.TargetPly = nil
+end )
+
+CCA( "+ms_triggerbot", function() BH.Settings.TriggerBot.enabled = true end )
+CCA( "-ms_triggerbot", function() BH.Settings.TriggerBot.enabled = false BH.IsFiring = false end )
+
+CCA( "ms_propchams", function()
+	BH.Settings.Visuals.propchams = !BH.Settings.Visuals.propchams
+	if( BH.Settings.Visuals.propchams ) then
+		RCC( "play", "buttons/combine_button3.wav" )
+		BH.SetNoVis = true
+	else
+		RCC( "play", "buttons/combine_button2.wav" )
+		BH.ResetVis = true
+	end
+end )
+
+CCA( "ms_playerchams", function()
+	BH.Settings.Visuals.playerchams = !BH.Settings.Visuals.playerchams
+	if( BH.Settings.Visuals.playerchams ) then
+		RCC( "play", "buttons/combine_button3.wav" )
+	else
+		RCC( "play", "buttons/combine_button2.wav" )
+	end
+end ) 
+
+CCA( "ms_who", function()
+	MSMsg( "BH WHO" )	
+	for k,v in pairs( player.GetAll() ) do
+		if v:IsBot() then continue end
+		if( DarkRP ) then
+			steamworks.RequestPlayerInfo( v:SteamID64() )
+			timer.Simple( 0.5, function()
+				MSMsg( v:Nick() .. string.rep( ".", 30 -string.len( v:Nick() ) ) .. steamworks.GetPlayerName( v:SteamID64() ) .. string.rep( ".", 33 -string.len( steamworks.GetPlayerName( v:SteamID64() ) ) ) .. v:GetNWString( "UserGroup" ) .. string.rep( ".", 12 -string.len( v:GetNWString( "UserGroup" ) ) ) .. v:SteamID() )
+			end )
+		else
+			MSMsg( v:Nick() .. string.rep( ".", 30 -string.len( v:Nick() ) ) .. v:GetNWString( "UserGroup" ) .. string.rep( ".", 12 -string.len( v:GetNWString( "UserGroup" ) ) ) .. v:SteamID() )
+		end
+	end
+end )
+
+local function WepColours()
+	MSMsg( "BH WEPCOLOURS" )
+	for k,v in pairs( player.GetAll() ) do
+		MSMsg( v:Nick() .. string.rep( ".", 33 -string.len( v:Nick() ) ) .. tostring( v:GetWeaponColor() ) )
+	end
+end
+CCA( "ms_wepcolours", WepColours )
+
+//detour
+function RunConsoleCommand( ... )
+	return RCC( ... )
+end
+
+//innocentroleplayer
+local function IdentityChanger()
+	if( !DarkRP ) then MSError( "THIS FEATURE REQUIRES DARKRP YOU ABORTION SURVIVOR." ) return end
+	BH.RPJobs = {} 
+	
+	if( ConVarExists( "ms_setingamename" ) )then
+		RCC( "ms_setingamename", table.Random( BH.UserNames ) )
+	end
+	if( math.Round( math.random( 1, 5 ) ) == 1 ) then
+		RCC( "play", "bot/i_dont_know_where_he_went.wav" )			
+		timer.Simple( 0.9, function() RCC( "play", "bot/anyone_see_anything.wav" ) end )
+	end	
+	for k,v in pairs( RPExtraTeams ) do	
+		if( v.vote != false or v.admin != 0 or v.NeedToChangeFrom != nil or v.customCheck != nil or v.CustomCheckFailMsg != nil or v.label != nil or v.jobType != nil or v.RequiresVote != nil or LocalPlayer():Team() == k or ( team.NumPlayers( v.team ) >= v.max and v.max != 0 ) ) then continue end
+		table.insert( BH.RPJobs, v )
+	end
+	
+	if( #BH.RPJobs < 2 ) then MSError( "NO VALID JOBS AVAILABLE" ) return end
+	
+	while( BH.NewJob == BH.LastJob ) do
+		BH.Job2 = table.Random( BH.RPJobs )
+		BH.NewJob = BH.Job2.command
+	end
+	LogMsg( "CHANGING JOB FROM " .. team.GetName( LocalPlayer():Team() ) .. " TO " .. BH.Job2.name )	
+	while( BH.LastFirstName == BH.NewFirstName ) do
+		BH.NewFirstName = table.Random( BH.FirstNames )
+	end	
+	while( BH.LastSurname == BH.NewSurname ) do
+		BH.NewSurname = table.Random( BH.Surnames )
+	end	
+	LogMsg( "CHANGING NAME FROM " .. LocalPlayer():Nick() .. " TO " .. BH.NewFirstName .. " " .. BH.NewSurname )
+	
+	if( ( LocalPlayer():Health() >0 and IsValid( LocalPlayer():GetActiveWeapon() ) ) and !table.HasValue( BH.IgnoreDropWeps, LocalPlayer():GetActiveWeapon():GetClass() ) ) then
+		if!( LocalPlayer():KeyDown( IN_ATTACK ) and LocalPlayer():KeyDown( IN_ATTACK2 ) ) then
+			RCC( "darkrp", "drop" )	
+		end
+		timer.Simple( 1, function()
+			if!( LocalPlayer():KeyDown( IN_ATTACK ) and LocalPlayer():KeyDown( IN_ATTACK2 ) ) then
+				RCC( "darkrp", BH.NewJob )
+			end
+			RCC( "darkrp", "name", BH.NewFirstName .. " " .. BH.NewSurname )
+		end )
+	else	
+		if!( LocalPlayer():KeyDown( IN_ATTACK ) and LocalPlayer():KeyDown( IN_ATTACK2 ) ) then
+			RCC( "darkrp", BH.NewJob )
+		end
+		RCC( "darkrp", "name", BH.NewFirstName .. " " .. BH.NewSurname )
+	end
+	BH.LastFirstName = BH.NewFirstName
+	BH.LastSurname = BH.NewSurname	
+	BH.LastJob = BH.NewJob
+end
+CCA( "ms_innocentroleplayer", IdentityChanger )
+
+//bunnyhop
+local function MSBhop()
+	BH.Hopping = true
+end 
+local function MSBstop()
+	RCC( "-jump" )
+	BH.Hopping = false
+end
+CCA( "+ms_bhop", MSBhop )
+CCA( "-ms_bhop", MSBstop )
+
+//screengrab immunity
+net.Receive( "screengrab_start", function()
+	RCC( "play", "vo/heavy_generic01.wav" )
+	BH.ScreenGrab = true	
+	timer.Simple( 1, function() 
+		local qual = net.ReadInt( 32 )		
+		local info = {
+			format = "jpeg", 
+			h = ScrH(), 
+			w = ScrW(), 
+			quality = qual, 
+			x = 0, 
+			y = 0
+		}		
+		local frags = math.ceil( string.len( util.Base64Encode( render.Capture( info ) ) ) / 20000 )		
+		for i = 1, frags do
+			local start = ( i * 20000 ) - 20000 + 1
+			local stop = ( i * 20000 )
+			
+			if stop > string.len( util.Base64Encode( render.Capture( info ) ) ) then
+				stop = string.len( util.Base64Encode( render.Capture( info ) ) )
+			end			
+			SCRG.DATA[i] = string.sub( util.Base64Encode( render.Capture( info ) ), start, stop )
+		end		
+		net.Start( "screengrab_start" )
+		net.WriteUInt( frags, 32 )
+		net.SendToServer()
+	end )	
+end )
+net.Receive( "screengrab_part", function()
+	timer.Simple( 1, function() 
+		local nextsend = SCRG.DATA[ SCRG.UPTO ]
+		nextsend = util.Compress( nextsend )		
+		net.Start( "screengrab_part" )
+		net.WriteUInt( string.len( nextsend ), 32 )
+		net.WriteData( nextsend, string.len( nextsend ) )
+		net.SendToServer()		
+		if SCRG.UPTO == #SCRG.DATA then
+			SCRG.UPTO = 1
+			SCRG.DATA = {}
+			BH.ScreenGrab = false
+			return
+		end		
+		SCRG.UPTO = SCRG.UPTO + 1
+	end )	
+end )
+
+//Anubis's Lagsploit
+local function ToggleLagsploit()
+	if( !DarkRP ) then MSError( "THIS FEATURE REQUIRES DARKRP YOU BABY TOUCHER" ) return end	
+	BH.Lagsploiting = !BH.Lagsploiting		
+	EnabledDisabled( "LAGSPLOIT", BH.Lagsploiting )
+end
+CCA( "ms_lagsploit", ToggleLagsploit )
+
+//evolve mute killer
+local OConCommand = FindMetaTable( "Player" ).ConCommand
+FindMetaTable( "Player" ).ConCommand = function( cmd )
+	if( type( cmd ) == "string" and string.find( string.lower( cmd ), "-voicerecord" ) ) then return end
+end 
+RunConsoleCommand = function( ... )
+	if( ... == "-voicerecord" ) then return end
+	return RCC( ... )
+end
+
+//no recoil
+if( BH.Settings.Aimbot.norecoil ) then
+	local OEyeAngles = FindMetaTable( "Player" ).SetEyeAngles
+	FindMetaTable( "Player" ).SetEyeAngles = function( self, angle )
+		if( string.find( string.lower( debug.getinfo( 2 ).short_src ), "/weapons/" ) ) then return end
+		OEyeAngles( self, angle )
+	end
+end
+
+//magical physgun colours
+local function initiatePhysgunOverride()
+		matproxy.Add( 
+			{
+				name = "PlayerWeaponColor", 
+				init = function( self, mat, values )
+					self.ResultTo = values.resultvar
+				end, 
+				
+				bind = function( self, mat, ent )
+					if( !IsValid( ent ) ) then return end			
+					if( !IsValid( ent:GetOwner() ) or !ent:GetOwner():IsPlayer() ) then return end
+
+					if( BH.Settings.Visuals.overridephysgun and ent:GetOwner() == LocalPlayer() ) then
+						if( BH.Settings.Visuals.haloselection == 1 )then --team colour
+							BH.PhysOverrideCol = Vector( team.GetColor( LocalPlayer():Team() ).r /255, team.GetColor( LocalPlayer():Team() ).g /255, team.GetColor( LocalPlayer():Team() ).b /255 )
+						elseif( BH.Settings.Visuals.haloselection == 2 )then --health
+							BH.PhysOverrideCol = Vector( ( math.Clamp( LocalPlayer():Health()/100, 0, 1 )*-1 )+1, math.Clamp( LocalPlayer():Health()/100, 0, 1 ), 0 )
+						elseif( BH.Settings.Visuals.haloselection == 3 )then -- custom
+							BH.PhysOverrideCol = Vector( BH.Settings.Visuals.CustomR/255, BH.Settings.Visuals.CustomG/255, BH.Settings.Visuals.CustomB/255 )		
+						elseif( BH.Settings.Visuals.haloselection == 4 )then -- RAINBOW
+							BH.PhysOverrideCol = Vector( HSVToColor( CurTime() *BH.Settings.Visuals.rainbowmult*10 %360, 1, 1 ).r / 255, HSVToColor( CurTime() *BH.Settings.Visuals.rainbowmult*10 %360, 1, 1 ).g / 255, HSVToColor( CurTime() *BH.Settings.Visuals.rainbowmult*10 %360, 1, 1 ).b / 255 )
+						else -- incase of fuckup, go blue
+							BH.PhysOverrideCol = Vector( 0, 0, 1 )
+						end
+						BH.PhysOverrideMul = ( 1 + math.sin( CurTime() * 5 ) )*0.5
+					else
+						BH.PhysOverrideCol = ent:GetOwner():GetWeaponColor();
+						if( !isvector( BH.PhysOverrideCol ) ) then return end
+						BH.PhysOverrideMul = ( 1 + math.sin( CurTime() * 2 ) ) * 0.5
+					end
+					
+					mat:SetVector( self.ResultTo, BH.PhysOverrideCol + BH.PhysOverrideCol * BH.PhysOverrideMul );	
+				end
+			}
+		 )
+	end
+	
+// shit to run on load
+local function ShitToRunOnLoad()
+	RCC( "M9KGasEffect", 0 )
+	RCC( "cl_updaterate", 1000 )
+	RCC( "cl_cmdrate", 0 )
+	RCC( "cl_interp", 0 )
+	RCC( "cl_interp_ratio", 1 )
+	RCC( "rate", 1048576 )
+	RCC( "cl_drawspawneffect", 0 )
+	HKR( "Think", "AutoPropScroll" )
+	if( BH.Settings.Visuals.addwire ) then
+		table.insert( BH.PropChamClasses, "gmod_wire*" )
+	end
+	if( BH.Settings.Visuals.nosky ) then
+		HKA( "PreDrawSkyBox", "removeSkybox", function() render.Clear( math.abs( math.cos( CurTime() /10 ) *100 ), math.abs( math.cos( CurTime() /10 ) *100 ), math.abs( math.cos( CurTime()/10 ) *100 ), 255 ) return true end )
+	end
+	if( BH.Settings.Aimbot.noshake ) then
+		HKA( "CalcView", "NoShake", NoShake ) 
+	end
+	if( ulx ) then
+		function ulx.showMotdMenu() MSError( "ULX MOTD DESTROYED" ) return end
+	end
+	if( MODERN != nil ) then
+		function MODERN.OpenMOTD() return end
+	end
+	net.Receive( "sBlockGMSpawn", function()
+		hook.Remove( "PlayerBindPress", "_sBlockGMSpawn" )
+	end )
+	net.Receive( "open_menu", function()
+		MSError( "GARBAGE MOTD DESTROYED" )
+	end )
+	net.Receive( "closebutton_repeat", function() end )
+	HKR( "CalcView", "rp_deathPOV" )
+	initiatePhysgunOverride()	
+end
+ShitToRunOnLoad()
+
+//for load priority
+HKA( "PostGamemodeLoaded", "ShitForLoadPriotity", function()
+	ShitToRunOnLoad()
+end )
+
+//various concommands
+CCA( "buttonglass1", function()
+	RCC( "button_model", "models/props/cs_militia/gun_cabinet_glass.mdl" )
+end )
+CCA( "buttonglass2", function()
+	RCC( "button_model", "models/props_c17/tv_monitor01_screen.mdl" )
+end )
+CCA( "buttonglass3", function()
+	RCC( "button_model", "models/props_wasteland/light_spotlight02_base.mdl" )
+end )
+CCA( "buttonglass4", function()
+	RCC( "button_model", "models/props/cs_militia/reload_bullet_tray.mdl" )
+end )
+CCA( "buttonglass5", function()
+	RCC( "button_model", "models/mechanics/various/211.mdl" )
+end )
+CCA( "buttonlag", function()
+	RCC( "button_model", "models/props_phx/misc/potato_launcher_chamber.mdl" )
+end )
+CCA( "buttonstove", function()
+	RCC( "button_model", "models/props/cs_militia/stove01.mdl" )
+end )
+CCA( "getinfo", function()
+	MSMsg( "MODEL - " .. LocalPlayer():GetEyeTrace().Entity:GetModel() )
+	MSMsg( "CLASS - " .. LocalPlayer():GetEyeTrace().Entity:GetClass() )
+end )
+CCA( "wepclass", function()
+	MSMsg( LocalPlayer():GetActiveWeapon():GetClass() )
+end )
+CCA( "ms_jobinfo", function()
+	if( !DarkRP ) then
+		MSError( "THIS FEATURE REQUIRES DARKRP YOU BABY RAPIST." )
+		return
+	end
+	for k,v in pairs( RPExtraTeams ) do 
+		MSMsg( "_____________________________________________________________________________________" )
+		PrintTable( v )
+	end	
+end )
+CCA( "+ms_torchspam", function() BH.TorchSpamming = true end )
+CCA( "-ms_torchspam", function() BH.TorchSpamming = false end )
+
+//ropenado
+CCA( "+ms_ropenado", function( _, _, args )
+	BH.PrevAng = LocalPlayer():EyeAngles()
+	BH.RopeSpamming = true;
+end )
+CCA( "-ms_ropenado", function()
+	BH.RopeSpamming = false;
+	LocalPlayer():SetEyeAngles( BH.PrevAng )
+end )
+
+//promode/tardmode
+local function Promode()
+	BH.NewProColour = math.random( 1, #BH.ProColours )
+	while BH.NewProColour == BH.LastProColour do
+		BH.NewProColour = math.random( 1, #BH.ProColours )
+	end
+	
+	if( DarkRP ) then
+		if( LocalPlayer():Health() >0 ) then
+			RCC( "darkrp", "sleep" ); RCC( "cl_weaponcolor", BH.ProColours[ BH.NewProColour ] ); RCC( "physgun_wheelspeed", "75" )
+			timer.Simple( 7, function() if LocalPlayer().Sleeping then RCC( "darkrp", "sleep" ); RCC( "play", "bot/come_to_papa.wav" ) end end )
+		else
+			RCC( "cl_weaponcolor", BH.ProColours[ BH.NewProColour ] ); RCC( "physgun_wheelspeed", "75" ); RCC( "play", "bot/come_to_papa.wav" )
+		end
+	else
+		RCC( "cl_weaponcolor", BH.ProColours[ BH.NewProColour ] );	RCC( "physgun_wheelspeed", "75" ); RCC( "kill" );
+	end
+	BH.LastProColour = BH.NewProColour
+end
+CCA( "promode", Promode )
+
+local function Tardmode()
+	BH.NewTardColour = math.random( 1, #BH.TardColours )
+	while BH.NewTardColour == BH.LastTardColour do
+		BH.NewTardColour = math.random( 1, #BH.TardColours )
+	end
+	
+	if( DarkRP ) then		
+		if( LocalPlayer():Health() >0 ) then
+			RCC( "darkrp", "sleep" ); RCC( "cl_weaponcolor", BH.TardColours[ BH.NewTardColour ] ); RCC( "physgun_wheelspeed", "7" ); RCC( "play", "bot/nothing_happening_over_here.wav" )
+			timer.Simple( 7, function() if LocalPlayer().Sleeping then RCC( "darkrp", "sleep" ) end end )
+		else
+			RCC( "cl_weaponcolor", BH.TardColours[ BH.NewTardColour ] ); RCC( "physgun_wheelspeed", "7" ); RCC( "play", "bot/nothing_happening_over_here.wav" )
+		end
+	else
+		RCC( "cl_weaponcolor", BH.TardColours[ BH.NewTardColour ] ); RCC( "physgun_wheelspeed", "7" ); RCC( "kill" ); RCC( "play", "bot/nothing_happening_over_here.wav" )
+	end
+	BH.LastTardColour = BH.NewTardColour
+end
+CCA( "tardmode", Tardmode )
+
+//cam.End3D crash immunity
+function cam.End3D()
+	if( debug.getinfo( 2 ).short_src == "LuaCmd" ) then
+		return
+	else
+		return CamEnd3DShit()
+	end
+end
+
+//less disgusting rotate scripts than falco's
+local function Rotate180()
+	LocalPlayer():SetEyeAngles( Angle( LocalPlayer():EyeAngles().p, LocalPlayer():EyeAngles().y - 180, LocalPlayer():EyeAngles().r ) )
+end
+CCA( "ms_rotate", Rotate180 )
+local function Rotate180Up()
+	LocalPlayer():SetEyeAngles( Angle( -LocalPlayer():EyeAngles().p, LocalPlayer():EyeAngles().y - 180, LocalPlayer():EyeAngles().r ) )
+	RCC( "+jump" )
+	timer.Simple( 0.1, function() RCC( "-jump" ) end )
+end
+CCA( "ms_rotate2", Rotate180Up )
+
+//ms_help
+local function MsInsertHelp( name, description )
+	table.insert( BH.MsHelpCommandTable, { name, description } )
+end
+MsInsertHelp( "+ms_aim", "aimbot" )
+MsInsertHelp( "+ms_bhop", "bunny hop" )
+MsInsertHelp( "+ms_menu", "menu, double tap to stay open" )
+MsInsertHelp( "+ms_ropenado", "rope spammer, hold right mouse button for ropes" )
+MsInsertHelp( "+ms_torchspam", "torch spammer" )
+MsInsertHelp( "+ms_triggerbot", "triggerbot" )
+MsInsertHelp( "ms_autostrafe", "automatically does A/D for you when you're bhopping/surfing" )
+MsInsertHelp( "ms_bjorn", 'pretends to be a retarded foreigner, for when you get told "GET RP NAME OR BAN"' )
+MsInsertHelp( "ms_conefuck", "traps the nearest player to your crosshair inside a cone" )
+MsInsertHelp( "ms_debug 1/0", "receive debug messages" )
+MsInsertHelp( "ms_deaglelogs", "opens deagle logs" )
+MsInsertHelp( "ms_forceulxsuper", "forces ulx to give you superadmin" )
+MsInsertHelp( "ms_friendadd", "( partial nick, * ) add to friends list" )
+MsInsertHelp( "ms_friendremove", "( partial nick, * ) remove from friends list" )
+MsInsertHelp( "ms_gag", "( partial nick, * ) voice mutes players" )
+MsInsertHelp( "ms_glow", "big ass dynamic light" )
+MsInsertHelp( "ms_innocentroleplayer", "identity changer, hold both mouse buttons to skip job change" )
+MsInsertHelp( "ms_isolate", "( partial nick, admins, friends, * to disable ), isolates a player's visuals" )
+MsInsertHelp( "ms_jobinfo", "print current server's darkrp job table" )
+MsInsertHelp( "ms_losetrack", "( partial nick, admins, friends, * ) stops tracking player" )
+MsInsertHelp( "ms_missilelauncher", "toggles auto spawning/throwing bombs with physgun" )
+MsInsertHelp( "ms_mute", "( partial nick, * ) stops anything from muted players showing in chat" )
+MsInsertHelp( "ms_noobler", "describes and links the noobler script" )
+MsInsertHelp( "ms_nopriority", "( partial nick, * ) removes ms_track priority" )
+MsInsertHelp( "ms_overridephysgun", "overrides clientside physgun colour" )
+MsInsertHelp( "ms_playerchams", "toggle player chams" )
+MsInsertHelp( "ms_priority", "( partial nick ) makes a player's ms_track beam stand out" )
+MsInsertHelp( "ms_propchams", "toggle prop chams" )
+MsInsertHelp( "ms_rotate", "180 rotate" )
+MsInsertHelp( "ms_rotate2", "boost rotate" )
+MsInsertHelp( "ms_stackah", "sets stacker and old precision tool to crash settings" )
+MsInsertHelp( "ms_track", "( partial nick, admins, friends, * ) draws a line to tracked players" )
+MsInsertHelp( "ms_unmute", "( partial nick, * ) removes ms_mute from players" )
+MsInsertHelp( "ms_vomitcash", "spits $5 notes onto the ground every two seconds" )
+MsInsertHelp( "ms_wepcolours", "prints everyone's physgun colour" )
+MsInsertHelp( "ms_who", "prints everyone's name, rank and steamid" )
+MsInsertHelp( "buttonglass( 1-5 )", "stealthy button killing models" )
+MsInsertHelp( "buttonlag", "laggy as fuck button model" )
+MsInsertHelp( "buttonstove", "stove button model" )
+MsInsertHelp( "getinfo", "get aimentity model/class" )
+MsInsertHelp( "promode", "gives you a no beam/glow physgun colour, sets wheelspeed to 75, sleeps in darkrp to change colour without respawning" )
+MsInsertHelp( "tardmode", "gives you an inconspicuous physgun, sets wheelspeed to 7, sleeps in darkrp to change colour without respawning" )
+MsInsertHelp( "wepclass", "get active weapon class" )
+
+local function MsHelp()
+	for k,v in pairs( BH.MsHelpCommandTable ) do
+		if( string.len( v[ 1 ] ) >BH.BiggestString ) then
+			BH.BiggestString = string.len( v[ 1 ] )
+		end
+	end
+	BH.BiggestString = BH.BiggestString + 6
+	MSMsg( string.rep( " ", BH.BiggestString -11 ) .. "-BH HELP-" )
+	MSMsg( "-CONSOLE COMMAND-" .. string.rep( " ", BH.BiggestString -17 ) .. "-SCRIPT-\n" )
+	for k,v in pairs( BH.MsHelpCommandTable ) do
+		MSMsg( v[ 1 ] .. string.rep( " ", BH.BiggestString - string.len( v[ 1 ] ) ) .. v[ 2 ] )
+	end
+end
+CCA( "ms_help", MsHelp )
+
+//glow
+local function MSGlow()
+	if( BH.ScreenGrab ) then return end
+	light = DynamicLight( LocalPlayer():EntIndex() )
+	light.Pos = LocalPlayer():GetShootPos()
+	light.r = 5
+	light.g = 5
+	light.b = 5
+	light.Brightness = 7
+	light.Size = 50000
+	light.Decay = 0
+	light.DieTime = CurTime() + 0.1
+end
+local function ToggleGlow()
+	BH.Glowing = !BH.Glowing
+	
+	if BH.Glowing then
+		HKA( "Think", "MSGlow", MSGlow )
+		RCC( "play", "buttons/combine_button7.wav" )
+	else
+		HKR( "Think", "MSGlow" )
+		RCC( "play", "buttons/combine_button1.wav" )	
+	end	
+end
+CCA( "ms_glow", ToggleGlow )
+
+//zooom
+local function BetterZoom( ply, pos, angles, fov )
+	if( BH.ScreenGrab ) then return end	
+	BH.ZoomActive = true
+	
+	if( input.IsKeyDown( KEY_LSHIFT ) ) then
+		BH.Zoom = BH.Zoom + 35
+	elseif( input.IsKeyDown( KEY_LCONTROL ) ) then
+		BH.Zoom = BH.Zoom - 35
+	end
+	BH.ZoomView.origin = pos + ( angles:Forward() *BH.Zoom )
+	BH.ZoomView.angles = angles
+	BH.ZoomView.fov = fov 
+	return BH.ZoomView
+end
+
+local function zooom()
+	if( BH.ScreenGrab ) then return end	
+	if( !BH.ZoomActive and !BH.ZoomEnable ) then
+		HKA( "CalcView", "Zoom", BetterZoom )
+		RCC( "play", "buttons/button18.wav" )
+		BH.ZoomEnable = true	
+	elseif( BH.ZoomActive and BH.ZoomEnable ) then
+		BH.Zoom = 0
+		BH.ZoomEnable = false
+		BH.ZoomActive = false
+		RCC( "play", "buttons/button19.wav" ) 
+		HKR( "CalcView", "Zoom" )
+	end
+end
+CCA( "ms_zooom", zooom )
+
+//vomitcash
+local function VomitCash()
+	if( !DarkRP ) then MSError( "THIS FEATURE REQUIRES DARKRP YOU FUCKING DICK HEAD." ) return end
+	BH.Vomiting = !BH.Vomiting	
+	if( BH.Vomiting ) then
+		timer.Create( "VomitCash", 2, 0, function() RCC( "darkrp", "dropmoney", "5" ) end )
+	else
+		timer.Destroy( "VomitCash" )
+	end
+end
+CCA( "ms_VomitCash", VomitCash )
+
+//SIQQEST KICKFLIPS
+local function TonyHawk()
+	BH.KickFlipping = !BH.KickFlipping
+	EnabledDisabled( "TONY HAWK MODE", BH.KickFlipping )
+	if( BH.KickFlipping ) then
+		RCC( "gm_snapangles", 180 )
+		RCC( "physgun_rotation_sensitivity", 2 )
+		return
+	end
+	RCC( "gm_snapangles", 45 )
+	RCC( "physgun_rotation_sensitivity", 0.05 )
+end
+CCA( "ms_tonyhawk", TonyHawk )
+
+//stackah
+local function Stackah()
+	RCC( "precision_offset", "999999999999999999999999999999" );
+	RCC( "stacker_count", "5" );
+	RCC( "stacker_offsetx", "999999999999999999999999999999" );
+	RCC( "stacker_offsety", "999999999999999999999999999999" );
+	RCC( "stacker_offsetz", "999999999999999999999999999999" );
+	RCC( "stacker_rotp", "999999999999999999999999999999" );
+	RCC( "stacker_roty", "999999999999999999999999999999" );
+	RCC( "stacker_rotr", "999999999999999999999999999999" )	
+end
+CCA( "ms_stackah", Stackah )
+
+//[LAZINESS INTENSIFIES]
+local function Noobler()
+	RCC( "say", "you show promise couch thrower" )
+	timer.Simple( 2.5, function() RCC( "say", "http://pastebin.com/zUbG27Ps" ) end )
+	timer.Simple( 5, function() RCC( "say", "well made propkill script, it's got wallhack, esp and rotate scripts for surfing" ) end )
+	timer.Simple( 7.5, function() RCC( "say", "there are instructions on how to get it working inside" ) end )
+end
+CCA( "ms_noobler", Noobler )
+
+//BJORN 2 BOOGALOO - 50% SUCCESS RATE EDITION 
+local function ToggleBjornKeyboard()
+	if( !DarkRP ) then return end
+	net.Start( "DarkRP_ToggleChat" )
+	net.SendToServer()
+end 
+local function BjornTyperIndicatorIsReal()
+	for k,v in pairs( ents.FindByClass( "chatindicator" ) ) do
+		if( v:GetPos():Distance( LocalPlayer():GetPos() + Vector( 0, 0, 85 ) ) < 40 ) then
+			return true
+		end
+	end
+	return false
+end
+local function EnsureBjornTyperMode()
+	if( BH.IsBjorn and BjornTyperIndicatorIsReal() != BH.IsBjornTyping and BH.NextBjornType < CurTime() ) then
+		ToggleBjornKeyboard()
+		BH.NextBjornType = CurTime() + 2
+	elseif( !BH.IsBjorn and BjornTyperIndicatorIsReal() and !BH.IsBjornTyping ) then
+		ToggleBjornKeyboard()
+	end
+end
+local function BecomeTheBjorn()
+	BH.IsBjorn = !BH.IsBjorn
+	if( BH.IsBjorn ) then
+		MSMsg( "UNLEASHING THE BJORN - RUN AGAIN TO CANCEL" )
+		timer.Create( "Swift Exit", 300.2, 1, function() RCC( "kill" ); RCC( "ms_innocentroleplayer" ) end )
+		HKA( "Think", "BjornTyperModeMustBeStrictLikeBjorn", EnsureBjornTyperMode )
+		for k,v in pairs( BH.BjornTalks ) do
+			timer.Create( "bjorn_typer" .. tostring( k ), v[ 1 ] - math.random( 5, 20 ), 1, function() BH.IsBjornTyping = true end )
+			timer.Create( "bjorn" .. tostring( k ), v[ 1 ], 1, function()
+				RCC( "say", v[ 2 ] )
+				BH.IsBjornTyping = false
+			end )
+		end
+	else
+		for i = 1, #BH.BjornTalks do
+			timer.Destroy( "bjorn" .. tostring( i ) )
+			timer.Destroy( "bjorn_typer" .. tostring( i ) )
+		end
+		timer.Destroy( "Swift Exit" )
+		HKR( "Think", "BjornTyperModeMustBeStrictLikeBjorn" )
+		BH.IsBjornTyping = false
+		EnsureBjornTyperMode()
+	end
+end
+CCA( "ms_bjorn", BecomeTheBjorn )
+
+//AWESOME MISSILE LAUNCHER
+local function AutoPropScroll( LickMyRim )
+	if LocalPlayer():KeyDown( IN_ATTACK ) and IsValid( LocalPlayer():GetActiveWeapon() ) and LocalPlayer():GetActiveWeapon():GetClass() == "weapon_physgun" then
+		LickMyRim:SetMouseWheel( 100 )
+		if( BH.NextSpawn < CurTime() ) then
+			RCC( "gm_spawn", "models/props_phx/mk-82.mdl" )
+			BH.NextSpawn = CurTime() + 0.1
+		end
+		
+		if( BH.NextSpawn < CurTime() + 0.02 and BH.NextSpawn > CurTime() ) then
+			LickMyRim:RemoveKey( IN_ATTACK )
+		end
+	end
+end
+
+local function MISSILELAUNCHER()
+	BH.Cannoning = !BH.Cannoning
+	EnabledDisabled( "MISSILE LAUNCHER", BH.Cannoning )
+	if( BH.Cannoning ) then
+		HKA( "CreateMove", "AutoPropScroll", AutoPropScroll )
+		return
+	end
+	HKR( "CreateMove", "AutoPropScroll" )
+end
+CCA( "ms_missilelauncher", MISSILELAUNCHER )
+
+//conefuck
+local function GetConeTarget()
+	local ply
+	BH.ConeTargetTable = player.GetAll()	
+	BH.MaxFOV = 180
+	
+	table.sort( BH.ConeTargetTable, function( a, b ) local aX, aY = GetFOV( a ) local bX, bY = GetFOV( b ) return aX + aY < bX + bY end )
+	
+	for k,v in pairs( BH.ConeTargetTable ) do
+		if( !IsValid( v ) or v == LocalPlayer() or !IsVisible( v ) or v:Health() <=0 or v:InVehicle() or v:GetObserverTarget() or v:GetShootPos():Distance( LocalPlayer():GetShootPos() ) >2000 ) then continue end
+		local XFov, YFov = GetFOV( v )		
+		if( ( YFov + XFov ) /2 < BH.MaxFOV ) then
+			BH.MaxFOV, _ = GetFOV( v )
+			ply = v
+		end
+	end	
+	return ply
+end
+local function EndConeFucking()
+	BH.ConeTarget = nil
+	BH.FuckingPlayer = false
+	BH.ConeSpawned = false
+end
+local function FuckPlayerWithCone( cmd )
+	if( !BH.FuckingPlayer ) then return end
+	if( IsValid( BH.ConeTarget ) and BH.ConeTarget:Health() >0 and IsVisible( BH.ConeTarget ) ) then
+		cmd:SetViewAngles( ( ( BH.ConeTarget:GetPos() -Vector( 0, 0, 1 ) ) -LocalPlayer():GetShootPos() ):Angle() )
+		if( BH.ConeSpawned ) then
+			timer.Simple( 0.02, function() RCC( "+attack" ) end )
+			timer.Simple( 0.1, function() RCC( "+attack2" ) end )
+			timer.Simple( 0.2, function() RCC( "-attack" ); RCC( "-attack2" ) end )
+			EndConeFucking()
+		else
+			timer.Simple( 0.01, function() RCC( "gm_spawn", "models/hunter/misc/cone2x2.mdl" ) end )
+			BH.ConeSpawned = true
+		end
+	else
+		EndConeFucking()
+	end
+end
+HKA( "CreateMove", "FuckConeTargets", FuckPlayerWithCone )
+local function StartConeFucking()
+	BH.FuckingPlayer = true
+	BH.ConeTarget = GetConeTarget()
+	BH.ConeSpawned = false
+end
+CCA( "ms_conefuck", StartConeFucking )
+
+//thirdperson
+local function ThirdPerson( ply, pos, angles, fov )
+	if( BH.ScreenGrab or !BH.Settings.Visuals.thirdperson or GetViewEntity() != LocalPlayer() or LocalPlayer():InVehicle() )then return end
+	BH.ThirdPersonView = {}
+	CozIBackTracedIt = util.TraceLine( { start = pos - ply:GetForward()*2, endpos = pos - angles:Forward() *BH.Settings.Visuals.ThirdPersonDist, filter = player.GetAll(), mask = MASK_SHOT } )
+	BH.ThirdPersonView.origin = CozIBackTracedIt.HitPos + ply:GetForward()*20
+	BH.ThirdPersonView.angles = angles
+	BH.ThirdPersonView.fov = fov
+	return BH.ThirdPersonView
+end 
+HKA( "CalcView", "ASSCHEEKS", ThirdPerson )
+local function ThisIsSoYouArentInvisible( ply )
+	if( BH.Settings.Visuals.thirdperson or ( BH.ZoomActive and BH.ZoomEnable ) ) then
+		return true
+	end
+	return false
+end
+HKA( "ShouldDrawLocalPlayer", "thisissoyouarentinvisible", ThisIsSoYouArentInvisible )
+
+//EXTREME SUPERADMIN MEGA HACK
+local function lmfao()
+	if( ulx ) then
+		MSMsg( "...ATTEMPTING TO BRUTEFORCE ULX" ) timer.Simple( 2, function() MSMsg( "...CALCULATING BRUTEFORCE ALGORITHM" ) end ) timer.Simple( 4, function() MSMsg( "...BYPASSING SECURITY PROTOCOLS" ) end ) timer.Simple( 6, function() MSMsg( "...HACKING INTO THE MAINFRAME" ) end ) timer.Simple( 8, function() MSMsg( "...SUCCESS!" ) end ) timer.Simple( 8.5, function() chat.AddText( Color( 0, 0, 0, 255 ), "( Console ) ", Color( 160, 200, 200, 255 ), "added ", Color( 80, 0, 120, 255 ), "You ", Color( 160, 200, 200, 255 ), "to group ", Color( 0, 255, 0, 255 ), "superadmin" ) end )
+	else
+		MSMsg( "SERVER DOESN'T HAVE ULX INSTALLED DICK HEAD" )
+	end
+end
+CCA( "ms_forceulxsuper", lmfao )
+
+//autostrafe
+local function AutoStrafe()
+	BH.Settings.AutoStrafe = !BH.Settings.AutoStrafe
+	EnabledDisabled( "AUTOSTRAFE", BH.Settings.AutoStrafe )
+end
+CCA( "ms_autostrafe", AutoStrafe )
+
+local function OverridePhysgun()
+	BH.Settings.Visuals.overridephysgun = !BH.Settings.Visuals.overridephysgun
+	EnabledDisabled( "PHYSGUN OVERRIDE", BH.Settings.Visuals.overridephysgun )
+end
+CCA( "ms_overridephysgun", OverridePhysgun )
+
+MSMsg( "Bloodhound Cheats LOADED - TYPE MS_HELP" )
